@@ -1,0 +1,38 @@
+name: Build app
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: signing-key-v1
+      - run: gradle --no-daemon assembleDebug
+      - name: Publish
+        run: |
+          mkdir out
+          cp app/build/outputs/apk/debug/app-debug.apk out/tv.apk
+          cd out
+          git init -q -b apk
+          git config user.name "app-bot"
+          git config user.email "app-bot@users.noreply.github.com"
+          git add -A
+          git commit -qm "Build ${{ github.run_number }}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" apk
