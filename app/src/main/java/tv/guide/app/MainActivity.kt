@@ -445,6 +445,20 @@ class MainActivity : Activity() {
             if (i in 0..1) ui.post { place(i, x, y, w, h, show) }
         }
 
+        /** Same as layout, but in ten-thousandths of the screen instead of pixels. */
+        @JavascriptInterface
+        fun frame(i: Int, x: Int, y: Int, w: Int, h: Int, show: Boolean) {
+            if (i !in 0..1) return
+            ui.post {
+                val sw = web.width
+                val sh = web.height
+                if (sw > 0 && sh > 0) {
+                    place(i, Math.round(x * sw / 10000f), Math.round(y * sh / 10000f),
+                        Math.round(w * sw / 10000f), Math.round(h * sh / 10000f), show)
+                }
+            }
+        }
+
         @JavascriptInterface
         fun pos(i: Int): Double = if (i in 0..1) position.get(i).toDouble() else 0.0
 
