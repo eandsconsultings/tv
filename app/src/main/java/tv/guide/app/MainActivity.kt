@@ -280,7 +280,7 @@ class MainActivity : Activity() {
                 say("The update couldn't open the install prompt")
             }
         } else if (status != PackageInstaller.STATUS_SUCCESS && status != -99) {
-            say("The update didn't install. Allow Guide TV under Install unknown apps, then try again.")
+            say("The update didn't install. Allow Onyx under Install unknown apps, then try again.")
         }
     }
 
