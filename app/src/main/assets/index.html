@@ -1,0 +1,992 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guide TV preview</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:#05080c;color:#fff;font-family:Roboto,"Helvetica Neue",Arial,sans-serif;overflow:hidden}
+#note{position:fixed;left:0;right:0;top:0;height:34px;display:flex;align-items:center;gap:18px;padding:0 14px;
+  font-size:13px;color:#c9d3df;background:#101822;border-bottom:1px solid #223;white-space:nowrap;overflow:hidden}
+#note b{color:#ffd27a}
+#wrap{position:fixed;left:0;right:0;top:34px;bottom:0;display:flex;align-items:center;justify-content:center}
+#stage{position:relative;width:960px;height:540px;background:#000;overflow:hidden;transform-origin:center center;flex:none;--fs:1;--rh:46px;--g1:#27364a;--g2:#1b2838;--g3:#141d2a}
+#guide{position:absolute;inset:0;background:linear-gradient(160deg,var(--g1) 0%,var(--g2) 55%,var(--g3) 100%)}
+video{position:absolute;left:0;top:0;width:960px;height:540px;background:#000}
+video.mini{left:16px;top:12px;width:320px;height:180px;border-radius:8px}
+#pip{position:absolute;display:none;background:#000;border-radius:8px;overflow:hidden;box-shadow:0 6px 24px rgba(0,0,0,.6);outline:2px solid var(--acc)}
+#pip video{position:static;width:100%;height:100%;display:block}
+#pip span{position:absolute;left:0;right:0;bottom:0;padding:4px 8px;font-size:12px;background:rgba(0,0,0,.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#info{position:absolute;left:356px;top:14px;right:20px;height:180px;overflow:hidden}
+#info h1{font-size:calc(22px*var(--fs));font-weight:700;line-height:1.2;max-height:54px;overflow:hidden}
+#meta{display:flex;align-items:center;gap:12px;margin-top:6px;font-size:calc(14px*var(--fs));color:#dbe4ee}
+#meta .pb{width:60px;height:3px;background:rgba(255,255,255,.25);border-radius:2px}
+#meta .pb i{display:block;height:100%;background:#fff;border-radius:2px}
+#favhint{position:absolute;left:0;bottom:0;font-size:13px;color:var(--acc);font-weight:500}
+#info p{font-size:calc(14px*var(--fs));color:var(--txt2);margin-top:6px;line-height:1.35;max-height:96px;overflow:hidden}
+#head{position:absolute;left:0;right:0;top:204px;height:26px;font-size:14px}
+#head .now{position:absolute;left:16px;top:3px;color:var(--acc);font-weight:700;white-space:nowrap}
+#head .tick{position:absolute;top:3px;color:#e6edf5;font-weight:700;white-space:nowrap}
+#head .line{position:absolute;left:16px;right:0;bottom:0;height:1px;background:rgba(255,255,255,.35)}
+#rows{position:absolute;left:0;right:0;top:234px;bottom:0;overflow:hidden}
+.r{position:absolute;left:0;right:0;height:var(--rh)}
+.cn{position:absolute;left:16px;top:0;width:240px;height:var(--rh);display:flex;align-items:center;gap:8px}
+.cn .no{width:34px;text-align:right;font-size:14px;color:var(--txt2);flex:none}
+.cn .lg{width:46px;height:34px;flex:none;display:flex;align-items:center;justify-content:center}
+.cn img{max-width:46px;max-height:34px}
+.cn .nm{font-size:calc(15px*var(--fs));font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.r.cur .nm{color:var(--acc)}
+.cell{position:absolute;top:0;height:var(--rh);background:var(--cell);border-radius:4px;padding:0 12px;line-height:var(--rh);
+  font-size:calc(15px*var(--fs));white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#e9eef4}
+.cell.f{background:var(--foc);color:var(--focfg);font-weight:500}
+.cell.past{color:#aab6c3}
+#nowline{position:absolute;top:226px;bottom:0;width:2px;background:var(--acc);opacity:.9}
+#nowline:before{content:"";position:absolute;left:-3px;top:-4px;width:8px;height:8px;border-radius:50%;background:var(--acc)}
+#shade{position:absolute;inset:0;background:rgba(0,0,0,.35);display:none}
+#m1{position:absolute;left:0;top:0;bottom:0;width:176px;background:var(--m1);color:var(--m1fg);padding-top:118px;display:none}
+#m1.thin{width:54px}
+.mi{display:flex;align-items:center;gap:12px;margin:4px 10px;padding:9px 12px;border-radius:6px;font-size:16px;font-weight:500;white-space:nowrap;overflow:hidden}
+.mi svg{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.mi.f{background:var(--m1f);color:var(--m1ffg,inherit)}
+.mi.on{background:rgba(255,255,255,.55)}
+#m1.thin .mi span{display:none}
+#m1.thin .mi{margin:4px 6px;padding:9px 11px}
+#m2{position:absolute;left:176px;top:0;bottom:0;width:270px;background:linear-gradient(160deg,var(--m2a),var(--m2b));padding:18px 10px;display:none;overflow:hidden}
+#m2 h2{font-size:13px;font-weight:700;color:var(--acc);padding:0 12px 8px;letter-spacing:.06em;text-transform:uppercase}
+.si{padding:8px 12px;border-radius:6px;font-size:16px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.si small{display:block;font-size:12px;font-weight:400;color:var(--txt2);overflow:hidden;text-overflow:ellipsis}
+.si.f{background:var(--foc);color:var(--focfg)}
+.si.f small{color:var(--focsub)}
+.si.sel{color:var(--acc)}
+.si.f.sel{color:var(--focfg)}
+#q{margin:0 12px 10px;padding:8px 10px;border-radius:6px;background:var(--cell);font-size:16px;min-height:36px}
+#q.f{outline:2px solid var(--foc)}
+#m2 .empty{padding:8px 12px;font-size:14px;color:var(--txt2);line-height:1.4;white-space:pre-line}
+#m3{position:absolute;left:446px;top:0;bottom:0;width:400px;background:var(--m3);padding:0 0 10px;display:none;overflow:hidden}
+#m3 h2{font-size:24px;font-weight:700;padding:22px 26px 16px;background:var(--m3h)}
+.oi{display:flex;align-items:center;gap:12px;margin:3px 10px;padding:9px 16px;border-radius:6px;font-size:16px;font-weight:500}
+.oi .tx{flex:1;min-width:0}
+.oi small{display:block;font-size:13px;font-weight:400;color:var(--txt2);margin-top:2px}
+.oi.f{background:var(--foc);color:var(--focfg)}
+.oi.f small{color:var(--focsub)}
+.oi.dim{color:#9aa8b8}
+.sw{width:34px;height:18px;border-radius:9px;background:rgba(255,255,255,.3);position:relative;flex:none}
+.sw:after{content:"";position:absolute;left:1px;top:1px;width:16px;height:16px;border-radius:50%;background:#dfe6ee}
+.sw.on{background:var(--acc)}.sw.on:after{left:17px;background:#fff}
+.oi.f .sw{background:rgba(27,40,56,.3)}.oi.f .sw.on{background:var(--focfg)}
+#guide{z-index:1}video{z-index:0}video.mini{z-index:2}#pip,#shade,#m1,#m2,#m3,#ov,#ovtop,#banner,#status,#toast{z-index:3}
+#guide.glass{background:rgba(18,26,38,.72)}
+#guide.glass{background:linear-gradient(160deg,color-mix(in srgb,var(--g1) 62%,transparent),color-mix(in srgb,var(--g3) 78%,transparent))}
+#biglogo{position:absolute;left:16px;top:12px;width:320px;height:180px;display:none;align-items:center;justify-content:center}
+#biglogo img{max-width:220px;max-height:130px}
+#ov{position:absolute;left:0;right:0;bottom:0;padding:70px 24px 14px;background:linear-gradient(180deg,transparent,rgba(0,0,0,.82) 42%);display:none}
+#ovtop{position:absolute;left:24px;top:14px;right:24px;display:none;justify-content:space-between;font-size:14px;font-weight:700;text-shadow:0 1px 3px #000}
+#ovinfo{display:flex;gap:16px;align-items:flex-end}
+#ovinfo .lg{width:110px;height:70px;display:flex;align-items:center;justify-content:center;flex:none}
+#ovinfo .lg img{max-width:110px;max-height:70px}
+#ovinfo h1{font-size:22px;font-weight:700}
+#ovinfo .l{display:flex;align-items:center;gap:12px;font-size:14px;margin-top:3px;color:#e6edf5;white-space:nowrap}
+#ovinfo .pb{width:60px;height:3px;background:rgba(255,255,255,.3);border-radius:2px}#ovinfo .pb i{display:block;height:100%;background:#fff;border-radius:2px}
+#ovbar{height:3px;background:rgba(255,255,255,.3);margin:10px 0 10px;border-radius:2px}#ovbar i{display:block;height:100%;background:var(--acc);border-radius:2px}
+#tiles{display:flex;gap:8px;overflow:hidden}
+.tile{width:118px;height:78px;flex:none;border-radius:6px;background:rgba(40,48,58,.85);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;font-size:13px;font-weight:500;padding:6px;text-align:center}
+.tile svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tile img{max-width:90px;max-height:34px}
+.tile span{max-width:106px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile.f{background:var(--foc);color:var(--focfg)}
+#tiles.tools{gap:2px;padding-top:6px}
+.tool{width:101px;flex:none;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px;font-weight:500;text-align:center;height:84px}
+.tool i{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+.tool svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tool span{max-width:98px;line-height:1.2;max-height:30px;overflow:hidden;text-shadow:0 1px 3px #000}
+.tool.f i{background:var(--foc);color:var(--focfg)}
+#ovmore{text-align:center;height:12px;font-size:11px;opacity:.7;margin-top:2px}
+#clist{position:absolute;left:0;top:0;bottom:0;width:330px;display:none;z-index:4;background:linear-gradient(90deg,rgba(8,12,18,.96),rgba(8,12,18,.86));padding:16px 0}
+#clist h2{font-size:20px;font-weight:500;padding:0 20px 10px}
+#clist .ci{padding:7px 20px;height:46px;overflow:hidden}
+#clist .ci b{display:block;font-size:15px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#clist .ci small{display:block;font-size:12px;color:var(--txt2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#clist .ci.f{background:var(--foc);color:var(--focfg)}#clist .ci.f small{color:inherit;opacity:.75}
+#srch{position:absolute;inset:0;display:none;z-index:6;background:linear-gradient(160deg,var(--g1) 0%,var(--g2) 55%,var(--g3) 100%);padding:26px 40px 0}
+#srch .bar{display:flex;align-items:center;gap:18px;margin-bottom:14px}
+#srch .bar svg{width:38px;height:38px;fill:none;stroke:var(--acc);stroke-width:2;flex:none}
+#sq{flex:1;height:44px;border-radius:6px;background:rgba(255,255,255,.14);padding:0 16px;font-size:20px;line-height:44px;white-space:nowrap;overflow:hidden}
+#sq i{display:inline-block;width:2px;height:22px;background:var(--acc);vertical-align:-4px;margin-left:1px}
+#sq em{font-style:normal;color:var(--txt2)}
+#srch h4{font-size:15px;font-weight:500;color:var(--txt2);margin:10px 0 8px}
+#srch .strip{display:flex;gap:10px;overflow:hidden;height:118px}
+#srch .card{flex:none;width:168px;height:112px;border-radius:8px;background:rgba(0,0,0,.32);padding:10px 12px;display:flex;flex-direction:column;justify-content:space-between;border:2px solid transparent;overflow:hidden}
+#srch .card.f{background:var(--foc,#eef3f8);color:#10202f;border-color:var(--acc)}
+#srch .card b{font-size:15px;font-weight:500;line-height:1.25;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+#srch .card small{font-size:12px;opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+#srch .card .when{font-size:11px;font-weight:700;letter-spacing:.04em;color:var(--acc)}
+#srch .card.f .when{color:#10202f}
+#srch .card img{max-width:120px;max-height:44px;object-fit:contain;align-self:flex-start}
+#srch .none{font-size:15px;color:var(--txt2);padding:18px 0;line-height:1.5;white-space:pre-line}
+#kb{position:absolute;right:28px;bottom:18px;width:470px;background:rgba(10,14,20,.94);border-radius:12px;padding:12px;box-shadow:0 10px 40px rgba(0,0,0,.6)}
+#kb .sug{display:flex;gap:8px;height:34px;margin-bottom:8px;overflow:hidden}
+#kb .sug span{flex:none;padding:0 14px;border-radius:17px;background:rgba(255,255,255,.1);font-size:14px;line-height:34px;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#kb .kr{display:flex;gap:5px;margin-bottom:5px}
+#kb .k{flex:1;height:40px;border-radius:5px;background:rgba(255,255,255,.1);font-size:19px;display:flex;align-items:center;justify-content:center}
+#kb .k.w{flex:3.2}
+#kb .k.s{background:rgba(255,255,255,.2);font-size:14px}
+#kb .f{background:#fff!important;color:#10202f}
+html.native,html.native body,html.native #stage{background:transparent}
+html.native #note{display:none}html.native #wrap{top:0}
+html.native video{visibility:hidden}html.native #pip{background:transparent}
+#ask{position:absolute;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:5}
+#ask .box{width:640px;background:var(--m3);border-radius:8px;padding:22px 24px}
+#ask h3{font-size:20px;margin-bottom:6px}
+#ask p{font-size:13px;color:var(--txt2);margin-bottom:12px;line-height:1.4}
+#ask input{width:100%;font:16px/1.3 inherit;padding:10px 12px;border-radius:6px;border:2px solid var(--acc);background:rgba(0,0,0,.35);color:#fff;outline:none}
+#ask small{display:block;margin-top:10px;font-size:12px;color:var(--txt2)}
+#banner{position:absolute;left:28px;bottom:28px;background:rgba(20,29,42,.92);padding:12px 18px;font-size:16px;white-space:pre-line;display:none;max-width:70%;border-radius:6px}
+#status{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:18px;text-align:center;white-space:pre-line;pointer-events:none}
+#toast{position:absolute;left:50%;bottom:44px;transform:translateX(-50%);background:#323232;border-radius:20px;padding:8px 18px;font-size:14px;display:none;white-space:nowrap}
+</style>
+</head>
+<body>
+<div id="note"><b>Browser preview of Guide TV</b><span>Arrows = remote pad</span><span>Enter = OK (hold for favorite)</span><span>M = Menu</span><span>Esc = Back</span><span>Enter while watching = pop-up menu</span><span>Left in the guide = side menu</span><span>P = send channel to small window</span><span>S = swap</span><span>X = close it</span></div>
+<div id="wrap"><div id="stage">
+  <div id="guide">
+    <div id="biglogo"></div>
+    <div id="info"><h1 id="it"></h1><div id="meta"></div><p id="id"></p><div id="favhint"></div></div>
+    <div id="head"></div>
+    <div id="rows"></div>
+    <div id="nowline"></div>
+  </div>
+  <video id="v" class="mini" playsinline></video>
+  <div id="pip"><video id="v2" muted playsinline></video><span id="pipname"></span></div>
+  <div id="shade"></div>
+  <div id="m1"></div>
+  <div id="m2"></div>
+  <div id="m3"></div>
+  <div id="ovtop"><span id="ovcat"></span><span id="ovclock"></span></div>
+  <div id="ov"><div id="ovinfo"></div><div id="ovbar"><i></i></div><div id="tiles"></div><div id="ovmore"></div></div>
+  <div id="clist"></div>
+  <div id="srch"><div class="bar"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><div id="sq"></div></div><div id="sres"></div><div id="kb"></div></div>
+  <div id="ask"><div class="box"><h3 id="askt"></h3><p id="askp"></p><input id="aski" spellcheck="false" autocomplete="off"><small>Enter saves. Esc cancels.</small></div></div>
+  <div id="banner"></div>
+  <div id="status">Loading channels and guide...</div>
+  <div id="toast"></div>
+</div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.13/hls.min.js"></script>
+<script>
+"use strict";
+// Mirrors the Fire TV app's logic so layout and remote behavior can be tried in a browser.
+const PLAYLIST = "https://raw.githubusercontent.com/eandsconsultings/epg/dist/full.m3u";
+const GUIDE = "https://raw.githubusercontent.com/eandsconsultings/epg/dist/guide.xml.gz";
+const ALL = "All channels", FAVS = "Favorites";
+const HALF = 1800000, X0 = 262;
+let SPAN = 4 * HALF, PPM = (960 - X0) / 120, ROW = 49, VISIBLE = 6;
+const $ = id => document.getElementById(id);
+// Inside the TV app the picture is drawn by the device's own player, underneath this page.
+const NATIVE = !!window.Native; let nPaused = false;
+if (NATIVE) document.documentElement.classList.add("native");
+window.tvKey = (type, key, repeat) => dispatchEvent(new KeyboardEvent(type, { key, repeat: !!repeat, cancelable: true }));
+window.nativeError = i => { if (i === 0) { if (current) recover(); } else if (pip) { toast(pip.name + " isn't playing in the second window"); startPip(null); render(); } };
+function nInfo() { try { return JSON.parse(Native.info()); } catch (e) { return {}; } }
+function syncNative() {
+  if (!NATIVE) return; const d = window.devicePixelRatio || 1;
+  const send = (i, el, show) => { const r = el.getBoundingClientRect(); Native.layout(i, Math.round(r.left * d), Math.round(r.top * d), Math.round(r.width * d), Math.round(r.height * d), show); };
+  send(0, v, true); const pe = $("pip"); send(1, pe, pe.style.display !== "none");
+}
+const v = $("v");
+
+const store = {
+  get(k, d) { try { const x = localStorage.getItem("gtv." + k); return x === null ? d : JSON.parse(x); } catch (e) { return d; } },
+  set(k, x) { try { localStorage.setItem("gtv." + k, JSON.stringify(x)); } catch (e) {} }
+};
+
+let channels = [], progs = {}, groups = [], shown = [], cat = ALL, current = null;
+let favs = new Set(store.get("favs", []));
+// ---------- themes ----------
+// bg: three-stop background, acc: accent, foc/focfg: highlighted item and its text, cell: program blocks,
+// m1/m1fg/m1f: main menu, m2: second panel, m3/m3h: settings panel and its header, txt2: secondary text
+const THEMES = {
+  "Midnight":    { bg: ["#27364a", "#1b2838", "#141d2a"], acc: "#8fc0ff", foc: "#eef3f8", focfg: "#1b2838", focsub: "#42556b", cell: "rgba(10,16,24,.55)", m1: "#c9d3de", m1fg: "#1b2838", m1f: "#ffffff", m2: ["#30425a", "#1e2c3f"], m3: "#3a4656", m3h: "#56637a", txt2: "#c4cfdb" },
+  "Onyx Gold":   { bg: ["#1c1a17", "#0f0e0c", "#050505"], acc: "#d4af37", foc: "#d4af37", focfg: "#14110a", focsub: "#4a3c12", cell: "rgba(255,255,255,.06)", m1: "#14120f", m1fg: "#e9dcb5", m1f: "#d4af37", m1ffg: "#14110a", m2: ["#24201a", "#141210"], m3: "#1d1a16", m3h: "#2b261e", txt2: "#b9ae94" },
+  "Champagne":   { bg: ["#3a3129", "#241e19", "#15110e"], acc: "#f0dcb0", foc: "#f3e7cc", focfg: "#2a2118", focsub: "#6b5a44", cell: "rgba(20,14,9,.5)", m1: "#efe4cf", m1fg: "#2a2118", m1f: "#ffffff", m2: ["#463a30", "#2a221c"], m3: "#3b3129", m3h: "#56483b", txt2: "#d6c8b0" },
+  "Emerald":     { bg: ["#0f3b33", "#0a2823", "#051613"], acc: "#e2c275", foc: "#e2c275", focfg: "#08221d", focsub: "#3d4a2a", cell: "rgba(0,0,0,.32)", m1: "#082620", m1fg: "#eadfba", m1f: "#e2c275", m1ffg: "#08221d", m2: ["#12463c", "#0a2a24"], m3: "#0e342d", m3h: "#16493f", txt2: "#b5cfc6" },
+  "Burgundy":    { bg: ["#4a1626", "#2e0d18", "#17060c"], acc: "#e8b4a0", foc: "#f2d6ca", focfg: "#2e0d18", focsub: "#7a4350", cell: "rgba(0,0,0,.32)", m1: "#f0dcd3", m1fg: "#2e0d18", m1f: "#ffffff", m2: ["#551a2c", "#30101a"], m3: "#3e1421", m3h: "#5c2233", txt2: "#dcbfc2" },
+  "Sapphire":    { bg: ["#16255c", "#0d163a", "#060a1e"], acc: "#cfd8ea", foc: "#e6ebf5", focfg: "#0d163a", focsub: "#44507a", cell: "rgba(0,0,0,.34)", m1: "#0a1130", m1fg: "#d9e0f0", m1f: "#3d55b8", m1ffg: "#ffffff", m2: ["#1c2e6e", "#0f1a44"], m3: "#15225a", m3h: "#22347d", txt2: "#b8c3de" },
+  "Graphite":    { bg: ["#3b444f", "#2a3038", "#1c2026"], acc: "#9fd0c8", foc: "#e8ecef", focfg: "#22272e", focsub: "#4d5661", cell: "rgba(0,0,0,.3)", m1: "#cfd4d9", m1fg: "#22272e", m1f: "#ffffff", m2: ["#444d58", "#2c323a"], m3: "#3a424c", m3h: "#525c68", txt2: "#c3cad1" }
+};
+// ---------- settings ----------
+const SECTIONS = [
+  { label: "General", items: [
+    { k: "lastOnStart", label: "Turn on last channel on app start", type: "toggle", def: true },
+    { k: "confirmExit", label: "Confirm exit by second press Back", type: "toggle", def: true },
+    { k: "bootStart", label: "Auto start app on boot", sub: "May not work on all devices", type: "toggle", def: false },
+    { label: "User-Agent", type: "app", sub: "Not set" },
+    { label: "Back up data", type: "later" },
+    { label: "Restore data", type: "later" } ] },
+  { label: "Playlists", items: () => [
+    ...lists.map((l, i) => ({ label: l.name, type: "act", list: i, toggle: !!l.on,
+      sub: (l.on ? "On  \u00B7  " + (l.count == null ? "loading" : l.failed ? "couldn't load" : l.count + " channels") : "Off  \u00B7  press OK to turn on") + "  \u00B7  " + shortUrl(l.url),
+      act: () => toggleList(i) })),
+    { label: "Add playlist", sub: "From a link, such as a GitHub playlist", type: "act", act: addList },
+    { label: "Update playlist now", type: "act", act: () => { toast("Reloading..."); load(); } },
+    { label: "Show hidden channels again", type: "act", sub: "Channels you hid from the pop-up menu", act: () => { const n = hidden.size; hidden.clear(); store.set("hidden", []); shown = filtered(); toast(n ? n + " channels are back" : "No channels are hidden"); } },
+    { label: "Remove a playlist", sub: "Highlight it above and press Menu", type: "info", value: () => "Highlight it above and press Menu" } ] },
+  { label: "Guide", items: [
+    { k: "epgInterval", label: "Update interval, hours", type: "choice", opts: ["None", "2", "6", "12", "24"], def: "2" },
+    { k: "epgOnStart", label: "Update on app start", type: "toggle", def: true },
+    { k: "hide", label: "Hide channels without listings", type: "toggle", def: false },
+    { k: "follow", label: "Play the highlighted channel while browsing", sub: "Starts each channel as you scroll onto it", type: "toggle", def: false },
+    { label: "Change guide link", type: "app" },
+    { label: "Update guide now", type: "act", act: () => { toast("Reloading..."); load(); } },
+    { label: "Clear guide", type: "act", act: () => { progs = {}; lastGuide = "Guide cleared"; toast("Guide cleared"); } },
+    { label: "Latest update status", type: "info", value: () => lastGuide } ] },
+  { label: "Appearance", items: [
+    { k: "font", label: "Font size", type: "choice", opts: ["Small", "Medium", "Large"], def: "Medium" },
+    { k: "rows", label: "Channels on screen", type: "choice", opts: ["5", "6", "7", "8"], def: "6" },
+    { k: "span", label: "Time shown across", type: "choice", opts: ["1.5 hours", "2 hours", "3 hours"], def: "2 hours" },
+    { k: "logos", label: "Channel logos", type: "toggle", def: true },
+    { k: "numbers", label: "Channel numbers", type: "toggle", def: true },
+    { k: "theme", label: "Color theme", type: "choice", opts: Object.keys(THEMES), def: "Midnight" },
+    { k: "glass", label: "Guide picture", type: "choice", opts: ["Small window", "Full screen behind guide"], def: "Small window" } ] },
+  { label: "Playback", items: [
+    { k: "buffer", label: "Buffer size", type: "choice", opts: ["Small", "Medium", "Large"], def: "Small", sub2: "Takes effect in the app" },
+    { k: "freezeWait", label: "Freeze detection", type: "choice", opts: ["8 seconds", "12 seconds", "20 seconds"], def: "12 seconds" },
+    { k: "retries", label: "Reconnect attempts", type: "choice", opts: ["0", "2", "4"], def: "2" },
+    { k: "fallback", label: "Use software decoder if hardware fails", type: "toggle", def: true } ] },
+  { label: "Picture in picture", items: [
+    { k: "pip2", label: "Second channel window", sub2: "", type: "toggle", def: true },
+    { k: "pipLayout", label: "Layout", type: "choice", opts: ["Corner window", "Half and half", "Large and small"], def: "Corner window" },
+    { k: "pipSide", label: "Main picture side", sub2: "", type: "choice", opts: ["Left", "Right"], def: "Left" },
+    { k: "pipPos", label: "Corner window position", type: "choice", opts: ["Top right", "Top left", "Bottom right", "Bottom left"], def: "Top right" },
+    { k: "pipSize", label: "Corner window size", type: "choice", opts: ["Small", "Medium", "Large", "Extra large"], def: "Medium" },
+    { k: "pipHome", label: "Keep playing in a corner on Home", sub: "May not work on all devices", type: "toggle", def: false },
+    { label: "How to use", type: "info", value: () => "In the guide, press Play/Pause on a channel to add it as the second picture. While watching: Fast-forward swaps the two, Rewind closes the second one." } ] },
+  { label: "About", items: [
+    { label: "Version", type: "info", value: () => "Browser preview" },
+    { label: "Check for updates", type: "later" },
+    { label: "Statistics", type: "info", value: () => "None collected" } ] }
+];
+// ---------- playlists ----------
+let lists = store.get("lists", null) || [{ name: "My channels", url: PLAYLIST, guide: GUIDE }];
+if (!lists.some(l => l.on)) lists[Math.min(store.get("listIdx", 0), lists.length - 1)].on = true;
+const secItems = i => typeof SECTIONS[i].items === "function" ? SECTIONS[i].items() : SECTIONS[i].items;
+function shortUrl(u) { return u.replace(/^https?:\/\//, "").replace(/^raw\.githubusercontent\.com\//, "github: ").slice(0, 44); }
+// Accept a normal GitHub page link and turn it into the raw file link.
+function rawLink(u) {
+  u = u.trim(); if (u && !/^https?:\/\//i.test(u)) u = "https://" + u;
+  const m = u.match(/^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/(?:blob|raw)\/(.+)$/i);
+  return m ? "https://raw.githubusercontent.com/" + m[1] + "/" + m[2] + "/" + m[3] : u;
+}
+function saveLists() { store.set("lists", lists.map(l => ({ name: l.name, url: l.url, guide: l.guide, on: !!l.on }))); }
+let loadSeq = 0;
+function reloadLists(msg) { saveLists(); if (msg) toast(msg); render(); load(true); }
+function toggleList(i) {
+  const l = lists[i];
+  if (l.on && lists.filter(x => x.on).length < 2) return toast("Keep at least one playlist turned on");
+  l.on = !l.on; l.count = null; l.failed = false;
+  reloadLists(l.on ? "Adding " + l.name + "..." : l.name + " turned off");
+}
+let asking = null;
+function ask(title, hint, value) {
+  return new Promise(res => { asking = res; $("askt").textContent = title; $("askp").textContent = hint; const i = $("aski"); i.value = value || ""; $("ask").style.display = "flex"; setTimeout(() => { i.focus(); if (NATIVE) Native.keyboard(true); }, 30); });
+}
+function endAsk(v) { const r = asking; asking = null; $("ask").style.display = "none"; $("aski").blur(); if (NATIVE) Native.keyboard(false); if (r) r(v); }
+async function addList() {
+  const url = rawLink(await ask("Playlist link", "Paste a link to an .m3u or .m3u8 playlist. A GitHub page link works too, and is converted for you.", "") || "");
+  if (!url) return;
+  if (lists.some(l => l.url === url)) return toast("That playlist is already saved");
+  const guess = (url.match(/githubusercontent\.com\/([^/]+)\/([^/]+)/) || []).slice(1).join("/") || "Playlist " + (lists.length + 1);
+  const name = (await ask("Name this playlist", "Shown in the playlist list.", guess) || "").trim() || guess;
+  const guide = rawLink(await ask("Guide link (optional)", "Leave empty to use the guide named inside the playlist, or your own guide if it names none.", "") || "");
+  lists.push({ name, url, guide, on: true }); reloadLists("Adding " + name + "..."); render();
+}
+function removeList(i) {
+  if (lists.length < 2) return toast("Keep at least one playlist");
+  const gone = lists.splice(i, 1)[0];
+  if (!lists.some(l => l.on)) lists[0].on = true;
+  reloadLists("Removed " + gone.name);
+}
+const S = store.get("set", {});
+for (const sec of SECTIONS) for (const it of (typeof sec.items === "function" ? [] : sec.items)) if (it.k && S[it.k] === undefined) S[it.k] = it.def;
+let lastGuide = "Not updated yet", secIdx = 0, optIdx = 0;
+function applySettings() {
+  store.set("set", S);
+  VISIBLE = +S.rows; ROW = Math.floor(306 / VISIBLE);
+  SPAN = (S.span === "1.5 hours" ? 3 : S.span === "3 hours" ? 6 : 4) * HALF; PPM = (960 - X0) / (SPAN / 60000);
+  const st = $("stage").style;
+  st.setProperty("--rh", (ROW - 3) + "px");
+  st.setProperty("--fs", S.font === "Small" ? "0.88" : S.font === "Large" ? "1.15" : "1");
+  if (!THEMES[S.theme]) S.theme = "Midnight";
+  const th = THEMES[S.theme];
+  const vars = { g1: th.bg[0], g2: th.bg[1], g3: th.bg[2], acc: th.acc, foc: th.foc, focfg: th.focfg, focsub: th.focsub, cell: th.cell,
+    m1: th.m1, m1fg: th.m1fg, m1f: th.m1f, m1ffg: th.m1ffg || th.m1fg, m2a: th.m2[0], m2b: th.m2[1], m3: th.m3, m3h: th.m3h, txt2: th.txt2 };
+  for (const k in vars) st.setProperty("--" + k, vars[k]);
+}
+let guideOpen = true, row = 0, topRow = 0, focusT = Date.now(), winStart = floor30(Date.now());
+// menu: 0 = closed, 1 = main list, 2 = second panel
+let menu = 0, mainIdx = 1, subIdx = 0, query = "";
+let lastBack = 0, stalledFor = 0, lastPos = -1, retries = 0, hls = null;
+
+const MAIN = [
+  { id: "search", label: "Search", icon: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>' },
+  { id: "tv", label: "TV", icon: '<rect x="2" y="4" width="20" height="14" rx="2"/><path d="M8 21h8"/>' },
+  { id: "list", label: "My list", icon: '<path d="M6 3h12v18l-6-4-6 4z"/>' },
+  { id: "history", label: "History", icon: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>' },
+  { id: "settings", label: "Settings", icon: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>' }
+];
+
+function floor30(t) { return Math.floor(t / HALF) * HALF; }
+function fit() { const w = $("wrap").clientWidth, h = $("wrap").clientHeight; $("stage").style.transform = "scale(" + Math.min(w / 960, h / 540) + ")"; }
+addEventListener("resize", () => { fit(); syncNative(); }); fit();
+
+let toastTimer = 0;
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.style.display = "block"; clearTimeout(toastTimer); toastTimer = setTimeout(() => t.style.display = "none", 2200); }
+
+const clock = ms => new Date(ms).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+const range = p => clock(p.start).replace(/ [AP]M$/, "") + " – " + clock(p.stop);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const unx = s => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#(\d+);/g, (m, n) => String.fromCharCode(+n)).replace(/&amp;/g, "&");
+
+function parsePlaylist(text) {
+  const out = []; let info = null, title = "";
+  for (const raw of text.split("\n")) {
+    const line = raw.trim();
+    if (line.startsWith("#EXTINF")) {
+      info = {}; for (const m of line.matchAll(/([a-zA-Z0-9-]+)="([^"]*)"/g)) info[m[1]] = m[2];
+      title = line.slice(line.lastIndexOf(",") + 1).trim();
+    } else if (line && !line.startsWith("#")) {
+      if (info) {
+        const name = info["tvg-name"] || title, id = info["tvg-id"] || name;
+        out.push({ id, name, group: info["group-title"] || "", logo: info["tvg-logo"] || "", url: line });
+      }
+      info = null;
+    }
+  }
+  return out;
+}
+function parseTime(s) {
+  if (!s || s.length < 14) return 0;
+  let t = Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8), +s.slice(8, 10), +s.slice(10, 12), +s.slice(12, 14));
+  if (s.length >= 20) t -= (s[15] === "-" ? -1 : 1) * (+s.slice(16, 18) * 3600000 + +s.slice(18, 20) * 60000);
+  return t;
+}
+function parseGuide(xml, keepAfter) {
+  const map = {}; const re = /<programme\b([^>]*)>([\s\S]*?)<\/programme>/g; let m;
+  while ((m = re.exec(xml))) {
+    const a = m[1], ch = (a.match(/channel="([^"]*)"/) || [])[1];
+    const start = parseTime((a.match(/start="([^"]*)"/) || [])[1]), stop = parseTime((a.match(/stop="([^"]*)"/) || [])[1]);
+    if (!ch || !start || stop <= keepAfter) continue;
+    const title = unx(((m[2].match(/<title[^>]*>([\s\S]*?)<\/title>/) || [])[1] || "").trim());
+    let desc = unx(((m[2].match(/<desc[^>]*>([\s\S]*?)<\/desc>/) || [])[1] || "").trim());
+    if (desc.length > 400) desc = desc.slice(0, 400) + "...";
+    (map[unx(ch)] = map[unx(ch)] || []).push({ start, stop, title, desc, filler: desc.includes("No published schedule") });
+  }
+  for (const k in map) map[k].sort((x, y) => x.start - y.start);
+  return map;
+}
+
+async function readGuide(url) {
+  const buf = await fetch(url, { cache: "no-store" }).then(r => { if (!r.ok) throw new Error(); return r.arrayBuffer(); });
+  const head = new Uint8Array(buf.slice(0, 2));
+  let xml;
+  if (head[0] === 0x1f && head[1] === 0x8b) xml = await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream("gzip"))).text();
+  else if (buf.byteLength > 80e6) throw new Error("big"); else xml = new TextDecoder().decode(buf);
+  return parseGuide(xml, Date.now() - 3600000);
+}
+// Loads every playlist that is turned on and merges them into one channel list.
+const plCache = {}, gCache = {};
+async function load(useCache) {
+  if (!useCache) { for (const k in plCache) delete plCache[k]; for (const k in gCache) delete gCache[k]; }
+  const seq = ++loadSeq, active = lists.filter(l => l.on);
+  const got = await Promise.all(active.map(async l => {
+    if (plCache[l.url]) return { l, ch: plCache[l.url].ch, guide: l.guide || plCache[l.url].named || GUIDE };
+    try {
+      const text = await fetch(l.url, { cache: "no-store" }).then(r => { if (!r.ok) throw new Error(); return r.text(); });
+      const ch = parsePlaylist(text); if (!ch.length) throw new Error();
+      const named = (text.slice(0, 600).match(/(?:x-tvg-url|url-tvg)="([^"]+)"/) || [])[1];
+      plCache[l.url] = { ch, named: named ? named.split(",")[0] : "" };
+      return { l, ch, guide: l.guide || plCache[l.url].named || GUIDE };
+    } catch (e) { return { l, ch: null }; }
+  }));
+  if (seq !== loadSeq) return;
+  const merged = [], seen = new Set(), guides = [];
+  for (const g of got) {
+    g.l.failed = !g.ch; g.l.count = g.ch ? g.ch.length : 0;
+    if (!g.ch) { toast("Couldn't load " + g.l.name); continue; }
+    for (const c of g.ch) { if (seen.has(c.url)) continue; seen.add(c.url); c.src = g.l.name; merged.push(c); }
+    if (!guides.includes(g.guide)) guides.push(g.guide);
+  }
+  if (!merged.length) {
+    if (!channels.length) { $("status").style.display = "flex"; $("status").textContent = "Couldn't load your playlists.\nCheck the links under Settings > Playlists."; menu = 0; }
+    return render();
+  }
+  if (got.filter(g => g.ch).length > 1) merged.sort((x, y) => x.name.localeCompare(y.name, "en", { numeric: true, sensitivity: "base" }));
+  const keep = {}; for (const c of merged) if (progs[c.id]) keep[c.id] = progs[c.id];
+  setData(merged, keep);
+  const all = {}; let okGuides = 0;
+  for (const u of guides) {
+    try { const g = gCache[u] || (gCache[u] = await readGuide(u)); if (seq !== loadSeq) return; okGuides++; for (const k in g) if (!all[k]) all[k] = g[k]; } catch (e) {}
+  }
+  if (seq !== loadSeq) return;
+  if (!okGuides) { lastGuide = "No guide could be loaded"; toast("No guide could be loaded"); return render(); }
+  setData(merged, all);
+  lastGuide = "Guide matched " + merged.filter(c => all[c.id]).length + " of " + merged.length + " channels at " + clock(Date.now());
+}
+function setData(ch, pr) {
+  channels = ch; progs = pr;
+  groups = [...new Set(ch.map(c => c.group).filter(Boolean))].sort();
+  if (cat !== ALL && cat !== FAVS && !groups.includes(cat)) cat = ALL;
+  shown = filtered();
+  $("status").style.display = "none";
+  if (!current && S.lastOnStart) { const last = store.get("last", null); const c = ch.find(x => x.id === last); if (c) { play(c, false); row = currentIndex(); } }
+  clampRow(); render();
+}
+const hasListings = c => { const l = progs[c.id]; return !!(l && l.length && !l[0].filler); };
+function filtered() { return channels.filter(c => (cat === ALL || (cat === FAVS ? favs.has(c.id) : c.group === cat)) && (!S.hide || hasListings(c)) && !hidden.has(c.id)); }
+function progAt(c, t) { const l = progs[c.id]; if (!l) return null; for (const p of l) if (p.start <= t && t < p.stop) return p; return null; }
+function focusProg() {
+  const c = shown[row]; if (!c) return null;
+  return progAt(c, focusT) || { start: winStart, stop: winStart + SPAN, title: "No information", desc: "", none: true };
+}
+
+// ---------- player and freeze recovery ----------
+function stopVideo() { if (NATIVE) return Native.stop(0); if (hls) { hls.destroy(); hls = null; } v.removeAttribute("src"); v.load(); }
+function start(c) {
+  stalledFor = 0; lastPos = -1; stopVideo();
+  if (NATIVE) { nPaused = false; return Native.play(0, c.url); }
+  if (window.Hls && Hls.isSupported()) {
+    hls = new Hls({ manifestLoadingTimeOut: 10000, fragLoadingTimeOut: 12000 });
+    hls.on(Hls.Events.ERROR, (e, d) => { if (d.fatal) recover(); });
+    hls.loadSource(c.url); hls.attachMedia(v);
+  } else { v.src = c.url; }
+  v.play().catch(() => {});
+}
+let hist = store.get("hist", []);
+function remember(c) { hist = [{ id: c.id, t: Date.now() }, ...hist.filter(h => h.id !== c.id)].slice(0, 40); store.set("hist", hist); }
+function play(c, showB, quiet) { current = c; store.set("last", c.id); if (!quiet) remember(c); retries = 0; start(c); if (showB) showBanner(c); render(); }
+function dayLabel(t) {
+  const d = new Date(t), n = new Date(), y = new Date(Date.now() - 86400000);
+  const same = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  return same(d, n) ? "Today" : same(d, y) ? "Yesterday" : d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+}
+let bannerTimer = 0;
+function setBanner(text) { const b = $("banner"); b.textContent = text; b.style.display = "block"; clearTimeout(bannerTimer); bannerTimer = setTimeout(() => b.style.display = "none", 4500); }
+function showBanner(c) {
+  let s = c.name; const p = progAt(c, Date.now());
+  if (p && !p.filler) s += "\n" + p.title + "   " + range(p);
+  setBanner(s);
+}
+function recover() {
+  const c = current; if (!c) return;
+  retries++;
+  if (retries <= +S.retries) { setBanner(c.name + "\nReconnecting... (try " + retries + " of " + S.retries + ")"); start(c); }
+  else { retries = 0; stalledFor = 0; stopVideo(); toast(c.name + " isn't playing right now"); if (guideOpen) render(); else showGuide(); }
+}
+v.addEventListener("error", () => { if (!hls && current) recover(); });
+setInterval(() => {
+  if (!current || (NATIVE ? nPaused : v.paused)) { stalledFor = 0; return; }
+  const pos = NATIVE ? Native.pos(0) : v.currentTime, moving = (NATIVE ? Native.ready(0) : v.readyState >= 3) && pos !== lastPos; lastPos = pos;
+  if (moving) { stalledFor = 0; retries = 0; } else { stalledFor += 2000; if (stalledFor >= parseInt(S.freezeWait) * 1000) { stalledFor = 0; recover(); } }
+}, 2000);
+// ---------- pop-up menu while watching ----------
+let overlay = false, ovIdx = 0, ovTimer = 0;
+function tiles() {
+  const byId = new Map(channels.map(c => [c.id, c]));
+  const recent = hist.map(h => byId.get(h.id)).filter(c => c && (!current || c.id !== current.id)).slice(0, 8);
+  const fav = current && favs.has(current.id);
+  return [
+    { label: "TV guide", icon: '<path d="M3 5h4v4H3zM10 5h11v4H10zM3 11h4v4H3zM10 11h11v4H10zM3 17h4v3H3zM10 17h11v3H10z"/>', act: () => showGuide() },
+    { label: "History", icon: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>', act: () => { showGuide(); menu = 2; mainIdx = MAIN.findIndex(m => m.id === "history"); subIdx = 0; render(); } },
+    { label: fav ? "In My list" : "Add to My list", keep: true, on: fav, icon: '<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.200 9.500l6.1-.9z"/>', act: () => { if (current) toggleFav(current); } },
+    { label: "My list", icon: '<path d="M6 3h12v18l-6-4-6 4z"/>', act: () => { showGuide(); menu = 2; mainIdx = MAIN.findIndex(m => m.id === "list"); subIdx = 0; render(); } },
+    ...recent.map(c => { const p = progAt(c, Date.now()); return { label: p && !p.filler ? p.title : c.name, logo: c.logo, act: () => play(c, true) }; })
+  ];
+}
+
+/* ---------- second row of the pop-up menu: tools ---------- */
+let ovRow = 0, ovSub = false, sleepT = 0, sleepAt = 0, hidden = new Set(store.get("hidden", []));
+let clOpen = false, clIdx = 0;
+const cyc = (list, cur, d) => list[(list.indexOf(cur) + 1 + list.length) % list.length];
+function applyAspect() { const m = { Normal: "contain", Stretch: "fill", Zoom: "cover" }[S.aspect || "Normal"]; v.style.objectFit = m; if (NATIVE) Native.aspect(S.aspect || "Normal"); }
+function setSleep(mins) { clearTimeout(sleepT); sleepAt = mins ? Date.now() + mins * 60000 : 0; S.sleep = mins ? mins + " min" : "Off";
+  if (mins) sleepT = setTimeout(() => { sleepAt = 0; S.sleep = "Off"; stopVideo(); startPip(null); current = null; showGuide(); toast("Sleep timer ended. Playback stopped."); }, mins * 60000); }
+function otherChannel() { const byId = new Map(channels.map(c => [c.id, c])); for (const h of hist) { const c = byId.get(h.id); if (c && (!current || c.id !== current.id)) return c; } return null; }
+function twoUp(layout) {
+  if (pip && S.pipLayout === layout) { startPip(null); return toast("Second picture closed"); }
+  const c = pip || otherChannel(); if (!c) return toast("Watch a second channel first, then try again");
+  S.pip2 = true; S.pipLayout = layout; store.set("set", S); if (!pip) startPip(c); else drawPip(); toast(c.name + (layout === "Corner window" ? " in the small window" : " side by side") + ". S swaps, X closes.");
+}
+function bitrate() { if (NATIVE) { const i = nInfo(); return { rate: i.rate > 0 ? (i.rate / 1e6).toFixed(2) + " Mbps" : (i.h ? i.h + "p" : "Live"), res: i.w ? i.w + " x " + i.h : "" }; } try { if (hls && hls.levels && hls.currentLevel >= 0) { const l = hls.levels[hls.currentLevel]; return { rate: (l.bitrate / 1e6).toFixed(2) + " Mbps", res: l.width ? l.width + " x " + l.height : "" }; } } catch (e) {} return { rate: "Live", res: "" }; }
+function trackName(t) { return t ? (t.name || t.lang || "Track") : ""; }
+function tools() {
+  const c = current, fav = c && favs.has(c.id), br = bitrate();
+  if (ovSub) return [
+    { label: "Back", keep: true, icon: '<path d="M15 5l-7 7 7 7"/>', act: () => { ovSub = false; ovIdx = 12; } },
+    { label: fav ? "Remove from My list" : "Add to My list", keep: true, icon: '<path d="M6 3h12v18l-6-4-6 4z"/>', act: () => c && toggleFav(c) },
+    { label: "Hide this channel", icon: '<path d="M3 3l18 18"/><path d="M10.600 6.200A9.500 9.500 0 0 1 12 6c6 0 9.500 6 9.500 6a16 16 0 0 1-2.600 3.300M6.300 7.700A16 16 0 0 0 2.500 12S6 18 12 18a9 9 0 0 0 3.300-.6"/>', act: () => { if (!c) return; hidden.add(c.id); store.set("hidden", [...hidden]); shown = filtered(); toast(c.name + " hidden. Bring it back in Settings > Playlists."); zap(1); } },
+    { label: "Open in the guide", icon: '<path d="M3 5h4v4H3zM10 5h11v4H10zM3 11h4v4H3zM10 11h11v4H10zM3 17h4v3H3zM10 17h11v3H10z"/>', act: () => showGuide() },
+    { label: "Reload this channel", keep: true, icon: '<path d="M20 12a8 8 0 1 1-2.300-5.700L20 8"/><path d="M20 3v5h-5"/>', act: () => { if (c) { start(c); toast("Reloading " + c.name); } } }
+  ];
+  const ni = NATIVE ? nInfo() : null;
+  const at = NATIVE ? (ni.audio || []) : (hls && hls.audioTracks || []).map(trackName), st = NATIVE ? (ni.text || []) : (hls && hls.subtitleTracks || []).map(trackName);
+  const aSel = NATIVE ? ni.audioSel : (hls ? hls.audioTrack : -1), tSel = NATIVE ? ni.textSel : (hls ? hls.subtitleTrack : -1);
+  const setA = i => { if (NATIVE) Native.audioTrack(i); else hls.audioTrack = i; }, setT = i => { if (NATIVE) Native.textTrack(i); else { hls.subtitleTrack = i; hls.subtitleDisplay = i >= 0; } };
+  return [
+    { label: "Search", icon: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.300-4.300"/>', act: () => { guideOpen = true; menu = 1; mainIdx = 0; openSearch(); } },
+    { label: "Channels list", icon: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>', act: () => { clOpen = true; clIdx = Math.max(0, currentIndex()); } },
+    { label: "Recordings", keep: true, icon: '<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.500"/>', act: () => toast("Recording isn't built yet") },
+    { label: "Multiview", keep: true, on: !!pip && S.pipLayout === "Half and half", icon: '<rect x="3" y="4" width="8" height="7"/><rect x="13" y="4" width="8" height="7"/><rect x="3" y="13" width="8" height="7"/><rect x="13" y="13" width="8" height="7"/>', act: () => twoUp("Half and half") },
+    { label: "Picture-in-picture", keep: true, on: !!pip && S.pipLayout === "Corner window", icon: '<rect x="3" y="5" width="18" height="14" rx="1"/><rect x="12" y="11" width="7" height="6" style="fill:currentColor"/>', act: () => twoUp("Corner window") },
+    { label: br.rate, keep: true, icon: '<rect x="3" y="7" width="12" height="10" rx="1"/><path d="M15 10l6-3v10l-6-3"/>', act: () => toast("Stream quality: " + br.rate + (br.res ? ", " + br.res : "")) },
+    { label: at.length ? (at[aSel] || "Audio") : "Audio: default", keep: true, icon: '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.500 8.500a5 5 0 0 1 0 7"/>', act: () => { if (at.length < 2) return toast("This channel has one audio track"); const n = (aSel + 1) % at.length; setA(n); toast("Audio: " + at[n]); } },
+    { label: (S.adelay || 0) + " ms", keep: true, icon: '<path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/><circle cx="12" cy="12" r="1.500" style="fill:currentColor"/>', act: () => { S.adelay = cyc([0, 50, 100, 150, 200, 300, -100, -50], S.adelay || 0); store.set("set", S); toast("Audio delay " + S.adelay + " ms. Saved, but not applied to the sound yet."); } },
+    { label: st.length && tSel >= 0 ? "CC: " + st[tSel] : "CC: Off", keep: true, icon: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 10.500a2 2 0 1 0 0 3M17 10.500a2 2 0 1 0 0 3"/>', act: () => { if (!st.length) return toast("This channel has no captions"); const n = tSel + 1 >= st.length ? -1 : tSel + 1; setT(n); toast("Captions: " + (n >= 0 ? st[n] : "Off")); } },
+    { label: S.aspect || "Normal", keep: true, icon: '<rect x="3" y="5" width="18" height="14" rx="1"/><path d="M7 12V9h3M17 12v3h-3"/>', act: () => { S.aspect = cyc(["Normal", "Stretch", "Zoom"], S.aspect || "Normal"); store.set("set", S); applyAspect(); toast("Picture shape: " + S.aspect); } },
+    { label: sleepAt ? Math.max(1, Math.round((sleepAt - Date.now()) / 60000)) + " min" : "Sleep: Off", keep: true, on: !!sleepAt, icon: '<circle cx="12" cy="13" r="7"/><path d="M12 9v4l2.500 2M9 3h6"/>', act: () => { const cur = sleepAt ? parseInt(S.sleep) : 0; const nx = cyc([0, 15, 30, 60, 90, 120], cur); setSleep(nx); toast(nx ? "Playback stops in " + nx + " minutes" : "Sleep timer off"); } },
+    { label: fav ? "In My list" : "Add to Favorites", keep: true, on: fav, icon: '<path d="M12 3l2.700 5.600 6.100.9-4.400 4.300 1 6.100L12 17l-5.400 2.900 1-6.100L3.200 9.500l6.100-.9z"/>', act: () => { if (c) toggleFav(c); } },
+    { label: "Channel options", keep: true, icon: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="3"/>', act: () => { ovSub = true; ovIdx = 1; } },
+    { label: "Settings", icon: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.900 4.900l2.100 2.100M17 17l2.100 2.100M4.900 19.100L7 17M17 7l2.100-2.100"/>', act: () => { showGuide(); menu = 2; mainIdx = MAIN.findIndex(m => m.id === "settings"); subIdx = 0; render(); } }
+  ];
+}
+const curTiles = () => ovRow ? tools() : tiles();
+function drawClist() {
+  const el = $("clist"); el.style.display = clOpen && !guideOpen ? "block" : "none"; if (!clOpen || guideOpen) return;
+  if (clIdx >= shown.length) clIdx = Math.max(0, shown.length - 1);
+  const from = Math.max(0, Math.min(clIdx - 4, shown.length - 10)), now = Date.now(); let h = "<h2>" + esc(cat) + "</h2>";
+  for (let i = from; i < Math.min(shown.length, from + 10); i++) { const c = shown[i], p = progAt(c, now);
+    h += '<div class="ci' + (i === clIdx ? " f" : "") + '"><b>' + (i + 1) + "  " + esc(c.name) + "</b><small>" + esc(p && !p.filler ? p.title : "No information") + "</small></div>"; }
+  el.innerHTML = h;
+}
+function clistKey(e) {
+  const k = e.key; e.preventDefault();
+  if (k === "Escape" || k === "Backspace" || k === "ArrowLeft") clOpen = false;
+  else if (k === "ArrowUp") clIdx = Math.max(0, clIdx - 1);
+  else if (k === "ArrowDown") clIdx = Math.min(shown.length - 1, clIdx + 1);
+  else if (k === "PageUp") clIdx = Math.max(0, clIdx - 9);
+  else if (k === "PageDown") clIdx = Math.min(shown.length - 1, clIdx + 9);
+  else if (k === "Enter") { if (e.repeat) return; const c = shown[clIdx]; clOpen = false; if (c) play(c, true); }
+  drawClist();
+}
+function showOverlay() { overlay = true; ovRow = 0; ovSub = false; ovIdx = 0; armOverlay(); render(); }
+function hideOverlay() { overlay = false; clearTimeout(ovTimer); render(); }
+function armOverlay() { clearTimeout(ovTimer); ovTimer = setTimeout(hideOverlay, 9000); }
+function drawOverlay() {
+  const on = overlay && !guideOpen && !!current;
+  $("ov").style.display = on ? "block" : "none"; $("ovtop").style.display = on ? "flex" : "none";
+  $("banner").style.bottom = on ? "196px" : "28px"; $("toast").style.bottom = on ? "200px" : "44px";
+  if (!on) return;
+  const c = current, now = Date.now(), l = progs[c.id] || [], p = progAt(c, now), nx = p ? l[l.indexOf(p) + 1] : null;
+  $("ovcat").textContent = c.group; $("ovclock").textContent = new Date(now).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + ", " + clock(now);
+  let h = '<div class="lg">' + (c.logo ? '<img src="' + esc(c.logo) + '" alt="" onerror="this.remove()">' : "") + "</div><div><h1>" + esc(p && !p.filler ? p.title : c.name) + "</h1>";
+  let pct = 0;
+  if (p && !p.filler) { pct = (now - p.start) * 100 / (p.stop - p.start);
+    h += '<div class="l"><span>' + esc(range(p)) + '</span><span class="pb"><i style="width:' + pct.toFixed(0) + '%"></i></span><span>' + Math.max(1, Math.round((p.stop - now) / 60000)) + " min</span><span>" + esc(c.name) + "</span></div>";
+    if (nx && !nx.filler) h += '<div class="l"><span>' + esc(range(nx)) + "</span><span>" + esc(nx.title) + "</span></div>";
+  } else h += '<div class="l"><span>' + esc(c.name) + "</span><span>No published schedule</span></div>";
+  $("ovinfo").innerHTML = h + "</div>"; $("ovbar").firstChild.style.width = pct.toFixed(0) + "%";
+  const ts = curTiles(); if (ovIdx >= ts.length) ovIdx = ts.length - 1;
+  $("ovinfo").style.display = $("ovbar").style.display = ovRow ? "none" : "";
+  const T = $("tiles"); T.className = ovRow ? "tools" : ""; $("ovmore").textContent = ovRow ? "" : "▾  more options";
+  if (ovRow) { const from = Math.max(0, Math.min(ovIdx - 4, ts.length - 9));
+    T.innerHTML = ts.slice(from, from + 9).map((t, i) => '<div class="tool' + (i + from === ovIdx ? " f" : "") + '"><i><svg viewBox="0 0 24 24"' + (t.on ? ' style="fill:currentColor"' : "") + ">" + t.icon + "</svg></i><span>" + esc(t.label) + "</span></div>").join(""); return; }
+  const from = Math.max(0, Math.min(ovIdx - 5, ts.length - 7));
+  T.innerHTML = ts.slice(from, from + 7).map((t, i) => '<div class="tile' + (i + from === ovIdx ? " f" : "") + '">' +
+    (t.icon ? '<svg viewBox="0 0 24 24"' + (t.on ? ' style="fill:currentColor"' : "") + ">" + t.icon + "</svg>" : t.logo ? '<img src="' + esc(t.logo) + '" alt="" onerror="this.remove()">' : "") + "<span>" + esc(t.label) + "</span></div>").join("");
+}
+
+// ---------- second channel window ----------
+let pip = null, hls2 = null; const v2 = $("v2");
+function stopPip() { if (NATIVE) return Native.stop(1); if (hls2) { hls2.destroy(); hls2 = null; } v2.removeAttribute("src"); v2.load(); }
+function startPip(c) {
+  stopPip(); pip = c; if (!c) return drawPip();
+  if (NATIVE) { Native.play(1, c.url); return drawPip(); }
+  if (window.Hls && Hls.isSupported()) { hls2 = new Hls({ manifestLoadingTimeOut: 10000 }); hls2.loadSource(c.url); hls2.attachMedia(v2); } else v2.src = c.url;
+  v2.play().catch(() => {}); drawPip();
+}
+function drawPip() {
+  const el = $("pip"), on = !!pip && S.pip2 && !guideOpen;
+  el.style.display = on ? "block" : "none";
+  const box = (e, x, y, w, h) => { e.style.left = x + "px"; e.style.top = y + "px"; e.style.width = w + "px"; e.style.height = h + "px"; };
+  for (const k of ["left", "top", "width", "height"]) v.style[k] = "";      // main picture back to its normal place
+  if (!on) return;
+  $("pipname").textContent = pip.name;
+  const mainLeft = S.pipSide === "Left";
+  if (S.pipLayout === "Half and half") {
+    // two equal pictures, each as large as fits in half the screen
+    box(v, mainLeft ? 0 : 480, 135, 480, 270); box(el, mainLeft ? 480 : 0, 135, 480, 270);
+  } else if (S.pipLayout === "Large and small") {
+    box(v, mainLeft ? 0 : 320, 90, 640, 360); box(el, mainLeft ? 648 : 8, 184, 304, 171);
+  } else {
+    const w = { Small: 200, Medium: 260, Large: 340, "Extra large": 440 }[S.pipSize], h = Math.round(w * 9 / 16), m = 24;
+    box(el, S.pipPos.includes("left") ? m : 960 - w - m, S.pipPos.startsWith("Top") ? m : 540 - h - m, w, h);
+  }
+}
+function sendToPip() {
+  const c = shown[row]; if (!c) return;
+  if (!S.pip2) return toast("Turn on Second channel window in Settings");
+  if (current && c.id === current.id) return toast("That channel is already the main picture");
+  startPip(c); toast(c.name + " is in the small window");
+}
+function swapPip() { if (!pip || !current) return; const a = current, b = pip; startPip(a); play(b, true); }
+
+function zap(step) {
+  const list = shown.length ? shown : channels; if (!list.length) return;
+  const i = list.findIndex(c => current && c.id === current.id);
+  play(list[i < 0 ? 0 : (i + step + list.length) % list.length], true);
+}
+
+// ---------- guide ----------
+function currentIndex() { const i = shown.findIndex(c => current && c.id === current.id); return i < 0 ? 0 : i; }
+function clampRow() {
+  if (row >= shown.length) row = Math.max(0, shown.length - 1);
+  if (row < topRow) topRow = row;
+  if (row >= topRow + VISIBLE) topRow = row - VISIBLE + 1;
+  if (topRow > Math.max(0, shown.length - VISIBLE)) topRow = Math.max(0, shown.length - VISIBLE);
+}
+function resetTime() { focusT = Date.now(); winStart = floor30(focusT); }
+function showGuide() { guideOpen = true; menu = 0; $("banner").style.display = "none"; row = currentIndex(); resetTime(); clampRow(); render(); }
+function hideGuide() { guideOpen = false; menu = 0; render(); }
+function setCat(name) { cat = name; shown = filtered(); row = 0; topRow = 0; resetTime(); menu = 0; render(); if (!shown.length) toast(name === FAVS ? "No favorites yet. Hold OK on a channel to add one." : "No channels here"); }
+function toggleFav(c) {
+  if (favs.has(c.id)) { favs.delete(c.id); toast("Removed from My list"); } else { favs.add(c.id); toast("Added to My list"); }
+  store.set("favs", [...favs]);
+  if (cat === FAVS) { shown = filtered(); clampRow(); }
+  render();
+}
+
+function render() {
+  if (guideOpen && menu === 2 && MAIN[mainIdx].id === "search" && !searching) { menu = 1; openSearch(); }
+  const glass = S.glass !== "Small window";
+  v.className = guideOpen && !glass ? "mini" : "";
+  $("guide").style.clipPath = NATIVE && guideOpen && !glass ? "polygon(evenodd, 0 0, 960px 0, 960px 540px, 0 540px, 0 0, 16px 12px, 336px 12px, 336px 192px, 16px 192px, 16px 12px)" : "";
+  $("guide").className = glass ? "glass" : "";
+  const bl = $("biglogo"), fc = shown[row];
+  bl.style.display = guideOpen && glass ? "flex" : "none";
+  bl.innerHTML = fc && fc.logo ? '<img src="' + esc(fc.logo) + '" alt="" onerror="this.remove()">' : "";
+  drawOverlay();
+  drawPip();
+  drawClist();
+  syncNative();
+  $("guide").style.display = guideOpen ? "block" : "none";
+  $("shade").style.display = guideOpen && menu ? "block" : "none";
+  drawMenu();
+  if (!guideOpen) return;
+  const now = Date.now();
+  // time header
+  let h = '<div class="now">' + esc(new Date(now).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + ", " + clock(now)) + '</div>';
+  for (let t = winStart; t < winStart + SPAN; t += HALF) {
+    const x = X0 + (t - winStart) / 60000 * PPM;
+    if (x > 250) h += '<div class="tick" style="left:' + x.toFixed(0) + 'px">' + clock(t) + "</div>";
+  }
+  $("head").innerHTML = h + '<div class="line"></div>';
+  const nl = $("nowline"), nx = X0 + (now - winStart) / 60000 * PPM;
+  nl.style.display = now >= winStart && now < winStart + SPAN ? "block" : "none"; nl.style.left = nx.toFixed(0) + "px";
+  // rows
+  const fp = focusProg(); let html = "";
+  for (let i = topRow; i < Math.min(shown.length, topRow + VISIBLE + 1); i++) {
+    const c = shown[i], y = (i - topRow) * ROW;
+    html += '<div class="r' + (current && current.id === c.id ? " cur" : "") + '" style="top:' + y + 'px"><div class="cn"><div class="no">' + (S.numbers ? i + 1 : "") + '</div><div class="lg">' +
+      (c.logo && S.logos ? '<img src="' + esc(c.logo) + '" alt="" onerror="this.remove()">' : "") + '</div><div class="nm">' + (favs.has(c.id) ? "★ " : "") + esc(c.name) + "</div></div>";
+    const list = (progs[c.id] || []).filter(p => p.stop > winStart && p.start < winStart + SPAN);
+    const cells = list.length ? list : [{ start: winStart, stop: winStart + SPAN, title: "No information", none: true }];
+    for (const p of cells) {
+      const a = Math.max(p.start, winStart), b = Math.min(p.stop, winStart + SPAN);
+      const x = X0 + (a - winStart) / 60000 * PPM, w = (b - a) / 60000 * PPM - 3;
+      if (w < 4) continue;
+      const foc = !menu && i === row && fp && (p === fp || (p.none && fp.none));
+      html += '<div class="cell' + (foc ? " f" : "") + '" style="left:' + x.toFixed(1) + "px;width:" + w.toFixed(1) + 'px">' + esc(p.filler ? c.name : p.title) + "</div>";
+    }
+    html += "</div>";
+  }
+  $("rows").innerHTML = html;
+  // top-right info
+  const c = shown[row];
+  if (!c) { $("it").textContent = cat; $("meta").innerHTML = ""; $("id").textContent = "No channels here."; return; }
+  $("favhint").textContent = favs.has(c.id) ? "\u2605 In My list  \u00B7  Menu removes it" : "\u2606 Press Menu to add to My list";
+  if (!fp || fp.none) { $("it").textContent = c.name; $("meta").innerHTML = ""; $("id").textContent = (c.group ? c.group + " channel. " : "") + "No information."; }
+  else {
+    $("it").textContent = fp.filler ? c.name : fp.title;
+    let m = "<span>" + esc(range(fp)) + "</span>";
+    if (fp.start <= now && now < fp.stop) m += '<span class="pb"><i style="width:' + ((now - fp.start) * 100 / (fp.stop - fp.start)).toFixed(0) + '%"></i></span><span>' + Math.max(1, Math.round((fp.stop - now) / 60000)) + " min left</span>";
+    else if (fp.start > now) m += "<span>Starts in " + Math.round((fp.start - now) / 60000) + " min</span>";
+    $("meta").innerHTML = m + "<span>" + esc(c.name) + "</span>";
+    $("id").textContent = fp.desc || "";
+  }
+}
+
+// ---------- pull-out menu ----------
+
+/* ---------- full-screen search ---------- */
+const KEYS = ["qwertyuiop".split(""), [..."asdfghjkl", "'"], [..."zxcvbnm", "&", "-", "DEL"], ["123", "SPACE", "CLEAR", "GO"]];
+const NUMS = ["1234567890".split(""), KEYS[1], KEYS[2], ["abc", "SPACE", "CLEAR", "GO"]];
+let searching = false, sZone = "kb", kr = 1, kc = 4, sugIdx = 0, sRow = 0, sCol = [0, 0], kNum = false, sCache = null;
+function openSearch() { searching = true; sZone = "kb"; sCache = null; drawSearch(); }
+function closeSearch() { searching = false; $("srch").style.display = "none"; render(); }
+function sResults() {
+  const q = query.trim().toLowerCase();
+  if (sCache && sCache.q === q) return sCache;
+  const out = { q, shows: [], chans: [], sugs: [] };
+  if (q.length >= 2) {
+    const now = Date.now(), seen = new Set(), words = new Map();
+    const note = t => { for (const w of t.toLowerCase().split(/[^a-z0-9']+/)) if (w.length > q.length && w.startsWith(q)) words.set(w, (words.get(w) || 0) + 1); };
+    for (const c of channels) {
+      if (c.name.toLowerCase().includes(q)) { out.chans.push(c); note(c.name); }
+      const l = progs[c.id]; if (!l || (l[0] && l[0].filler)) continue;
+      for (const p of l) {
+        if (p.stop <= now || p.filler || !p.title.toLowerCase().includes(q)) continue;
+        note(p.title); const key = c.id + "|" + p.title; if (seen.has(key)) continue; seen.add(key);
+        out.shows.push({ c, p });
+      }
+    }
+    out.shows.sort((a, b) => a.p.start - b.p.start); out.shows = out.shows.slice(0, 60); out.chans = out.chans.slice(0, 60);
+    out.sugs = [...words.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(x => x[0]);
+  }
+  return sCache = out;
+}
+function sRows() { const r = sResults(), rows = []; if (r.shows.length) rows.push({ t: "Shows", k: "shows", n: r.shows.length }); if (r.chans.length) rows.push({ t: "Channels", k: "chans", n: r.chans.length }); return rows; }
+function drawSearch() {
+  const el = $("srch"); el.style.display = searching ? "block" : "none"; if (!searching) return;
+  const r = sResults(), rows = sRows(), now = Date.now();
+  $("sq").innerHTML = (query ? esc(query) : "<em>Search channels and shows</em>") + (sZone === "kb" ? "<i></i>" : "");
+  if (sRow >= rows.length) sRow = Math.max(0, rows.length - 1);
+  let h = "";
+  if (!rows.length) h = '<div class="none">' + (r.q.length < 2 ? "Type at least two letters.\nResults cover every channel name and every show in the guide, on now or later." : "Nothing matches “" + esc(query.trim()) + "”.") + "</div>";
+  rows.forEach((row, i) => {
+    if (sCol[i] >= row.n) sCol[i] = row.n - 1;
+    const from = Math.max(0, Math.min(sCol[i] - 2, row.n - 5));
+    h += "<h4>" + row.t + " · " + row.n + (row.n === 60 ? "+" : "") + '</h4><div class="strip">';
+    for (let j = from; j < Math.min(row.n, from + 6); j++) {
+      const f = sZone === "res" && sRow === i && sCol[i] === j ? " f" : "";
+      if (row.k === "shows") { const { c, p } = r.shows[j]; const live = p.start <= now;
+        h += '<div class="card' + f + '"><div><div class="when">' + (live ? "ON NOW" : (dayLabel(p.start) + " " + clock(p.start)).toUpperCase()) + "</div><b>" + esc(p.title) + "</b></div><small>" + esc(c.name) + "</small></div>"; }
+      else { const c = r.chans[j], p = progAt(c, now);
+        h += '<div class="card' + f + '">' + (c.logo ? '<img src="' + esc(c.logo) + '" onerror="this.remove()">' : "<span></span>") + "<div><b style=\"-webkit-line-clamp:2\">" + esc(c.name) + "</b><small>" + esc(p && !p.filler ? p.title : (c.group || "")) + "</small></div></div>"; }
+    }
+    h += "</div>";
+  });
+  $("sres").innerHTML = h;
+  const kb = $("kb"); kb.style.display = sZone === "kb" ? "block" : "none";
+  if (sZone !== "kb") return;
+  const K = kNum ? NUMS : KEYS, lab = { DEL: "⌫", SPACE: "space", CLEAR: "clear", GO: "search", "123": "123", abc: "abc" };
+  if (sugIdx >= r.sugs.length) sugIdx = Math.max(0, r.sugs.length - 1);
+  let k = '<div class="sug">' + r.sugs.map((w, i) => '<span' + (kr === -1 && i === sugIdx ? ' class="f"' : "") + ">" + esc(w) + "</span>").join("") + "</div>";
+  K.forEach((line, y) => { k += '<div class="kr">' + line.map((key, x) => '<div class="k' + (key === "SPACE" ? " w" : "") + (key.length > 1 ? " s" : "") + (y === kr && x === kc ? " f" : "") + '">' + (lab[key] || key) + "</div>").join("") + "</div>"; });
+  kb.innerHTML = k;
+}
+function sType(ch) { query += ch; sCache = null; sCol = [0, 0]; sRow = 0; }
+function sPress() {
+  const r = sResults();
+  if (kr === -1) { const w = r.sugs[sugIdx]; if (w) { query = query.replace(/[a-z0-9']*$/i, "") + w + " "; query = query.trimStart(); sCache = null; kr = 0; } return; }
+  const key = (kNum ? NUMS : KEYS)[kr][kc];
+  if (key === "DEL") { query = query.slice(0, -1); sCache = null; }
+  else if (key === "CLEAR") { query = ""; sCache = null; }
+  else if (key === "SPACE") sType(" ");
+  else if (key === "123" || key === "abc") kNum = !kNum;
+  else if (key === "GO") { if (sRows().length) sZone = "res"; else toast("Nothing to show yet"); }
+  else sType(key);
+}
+function sPick() {
+  const r = sResults(), row = sRows()[sRow]; if (!row) return;
+  const now = Date.now(), hit = row.k === "shows" ? r.shows[sCol[sRow]] : { c: r.chans[sCol[sRow]] };
+  cat = ALL; shown = filtered(); searching = false; $("srch").style.display = "none";
+  if (hit.p && hit.p.start > now) {
+    const i = shown.findIndex(c => c.id === hit.c.id); guideOpen = true; menu = 0;
+    if (i >= 0) { row_set(i); focusT = hit.p.start + 1000; winStart = floor30(hit.p.start); }
+    toast(hit.p.title + " starts " + dayLabel(hit.p.start) + " " + clock(hit.p.start)); return render();
+  }
+  play(hit.c, true); hideGuide();
+}
+function row_set(i) { row = i; clampRow(); }
+function searchKey(e) {
+  const k = e.key; e.preventDefault();
+  if (k === "Escape") { if (sZone === "res") sZone = "kb"; else return closeSearch(); return drawSearch(); }
+  if (sZone === "kb") {
+    const K = kNum ? NUMS : KEYS, r = sResults();
+    if (k.length === 1 && !e.ctrlKey && !e.metaKey) sType(k);
+    else if (k === "Backspace") { query = query.slice(0, -1); sCache = null; }
+    else if (k === "Enter") { if (!e.repeat) sPress(); }
+    else if (k === "ArrowLeft") { if (kr === -1) sugIdx = Math.max(0, sugIdx - 1); else if (kc > 0) kc--; else if (sRows().length) sZone = "res"; }
+    else if (k === "ArrowRight") { if (kr === -1) sugIdx = Math.min(r.sugs.length - 1, sugIdx + 1); else kc = Math.min(K[kr].length - 1, kc + 1); }
+    else if (k === "ArrowUp") { if (kr > 0) { const f = kc / (K[kr].length - 1 || 1); kr--; kc = Math.round(f * (K[kr].length - 1)); } else if (kr === 0 && r.sugs.length) { kr = -1; sugIdx = 0; } }
+    else if (k === "ArrowDown") { if (kr === -1) { kr = 0; } else if (kr < K.length - 1) { const f = kc / (K[kr].length - 1 || 1); kr++; kc = Math.round(f * (K[kr].length - 1)); } else if (sRows().length) sZone = "res"; }
+  } else {
+    const rows = sRows();
+    if (k === "Enter") { if (!e.repeat) return sPick(); }
+    else if (k === "ArrowLeft") sCol[sRow] = Math.max(0, sCol[sRow] - 1);
+    else if (k === "ArrowRight") sCol[sRow] = Math.min(rows[sRow].n - 1, sCol[sRow] + 1);
+    else if (k === "ArrowDown") { if (sRow < rows.length - 1) sRow++; }
+    else if (k === "ArrowUp") { if (sRow > 0) sRow--; else sZone = "kb"; }
+    else if (k.length === 1 || k === "Backspace") { sZone = "kb"; if (k.length === 1) sType(k); else { query = query.slice(0, -1); sCache = null; } }
+  }
+  drawSearch();
+}
+function subItems() {
+  const id = MAIN[mainIdx].id;
+  if (id === "tv") return [FAVS, ALL, ...groups].map(n => ({ label: n, sel: n === cat, act: () => setCat(n) }));
+  if (id === "list") return channels.filter(c => favs.has(c.id)).map(c => chItem(c));
+  if (id === "history") {
+    const byId = new Map(channels.map(c => [c.id, c])); const out = [];
+    for (const h of hist) { const c = byId.get(h.id); if (!c) continue; const it = chItem(c); it.sub = dayLabel(h.t) + " " + clock(h.t) + (it.sub ? "  \u00B7  " + it.sub : ""); it.hid = h.id; out.push(it); }
+    if (out.length) out.push({ label: "Clear history", act: () => { hist = []; store.set("hist", hist); subIdx = 0; toast("History cleared"); } });
+    return out;
+  }
+  if (id === "search") { const q = query.trim().toLowerCase(); if (q.length < 2) return [];
+    return channels.filter(c => { const p = progAt(c, Date.now()); return c.name.toLowerCase().includes(q) || (p && !p.filler && p.title.toLowerCase().includes(q)); }).slice(0, 40).map(c => chItem(c)); }
+  return SECTIONS.map((sec, i) => ({ label: sec.label, act: () => { menu = 3; secIdx = i; optIdx = 0; } }));
+}
+function chItem(c) { const p = progAt(c, Date.now()); return { label: c.name, sub: p && !p.filler ? p.title : (c.group || ""), act: () => { play(c, false); cat = ALL; shown = filtered(); hideGuide(); } }; }
+function drawMenu() {
+  const m1 = $("m1"), m2 = $("m2");
+  m1.style.display = guideOpen && menu ? "block" : "none";
+  m2.style.display = guideOpen && menu ? "block" : "none";
+  $("m3").style.display = guideOpen && menu === 3 ? "block" : "none";
+  if (!guideOpen || !menu) return;
+  m1.innerHTML = MAIN.map((x, i) => '<div class="mi' + (i === mainIdx ? (menu === 1 ? " f" : " on") : "") + '"><svg viewBox="0 0 24 24">' + x.icon + "</svg><span>" + x.label + "</span></div>").join("");
+  const id = MAIN[mainIdx].id, items = subItems();
+  if (subIdx >= items.length) subIdx = Math.max(0, items.length - 1);
+  let h = "<h2>" + MAIN[mainIdx].label + "</h2>";
+  if (id === "search") h += '<div id="q"' + (menu === 2 ? ' class="f"' : "") + ">" + (esc(query) || '<span style="color:#93a3b5">Type a channel or show</span>') + "</div>";
+  if (!items.length) h += '<div class="empty">' + (id === "list" ? "Nothing saved yet.\nIn the guide, hold OK on a channel to add it here." : id === "history" ? "Nothing watched yet." : id === "search" ? (query.trim().length < 2 ? "" : "No matches.") : "") + "</div>";
+  const from = Math.max(0, Math.min(subIdx - 5, items.length - 11));
+  for (let i = from; i < Math.min(items.length, from + 11); i++) {
+    const it = items[i];
+    h += '<div class="si' + (menu === 2 && i === subIdx ? " f" : "") + (it.sel || (menu === 3 && i === subIdx) ? " sel" : "") + '">' + esc(it.label) + (it.sub ? "<small>" + esc(it.sub) + "</small>" : "") + "</div>";
+  }
+  m2.innerHTML = h;
+  const m3 = $("m3"); m3.style.display = menu === 3 ? "block" : "none";
+  if (menu !== 3) return;
+  const sec = SECTIONS[secIdx]; let o = "<h2>" + sec.label + "</h2>";
+  const its = secItems(secIdx); if (optIdx >= its.length) optIdx = its.length - 1;
+  its.forEach((it, i) => {
+    let sub = it.sub || "", right = "";
+    if (it.type === "toggle") right = '<div class="sw' + (S[it.k] ? " on" : "") + '"></div>';
+    if (it.list !== undefined) right = '<div class="sw' + (it.toggle ? " on" : "") + '"></div>';
+    else if (it.type === "choice") sub = S[it.k];
+    else if (it.type === "info") sub = it.value();
+    else if (it.type === "later") sub = "Coming later";
+    else if (it.type === "app") sub = sub || "Set in the app";
+    o += '<div class="oi' + (i === optIdx ? " f" : "") + (it.type === "later" ? " dim" : "") + '"><div class="tx">' + esc(it.label) + (sub ? "<small>" + esc(sub) + "</small>" : "") + "</div>" + right + "</div>";
+  });
+  m3.innerHTML = o;
+}
+function pickOption() {
+  const it = secItems(secIdx)[optIdx]; if (!it) return;
+  if (it.type === "toggle") S[it.k] = !S[it.k];
+  else if (it.type === "choice") S[it.k] = it.opts[(it.opts.indexOf(S[it.k]) + 1) % it.opts.length];
+  else if (it.type === "act") it.act();
+  else if (it.type === "later") return toast("Not built yet");
+  else if (it.type === "app") return toast("Not built yet");
+  else return;
+  applySettings(); shown = filtered(); clampRow(); resetTime();
+}
+
+// ---------- remote ----------
+let okDown = 0, okLong = false, okTimer = 0;
+function ok() {
+  if (!guideOpen) { if (!overlay) return showOverlay(); const t = curTiles()[ovIdx]; if (t && t.keep) { t.act(); armOverlay(); return render(); } overlay = false; clearTimeout(ovTimer); if (t) t.act(); return render(); }
+  if (menu === 1) { menu = 2; subIdx = 0; if (MAIN[mainIdx].id === "tv") subIdx = Math.max(0, [FAVS, ALL, ...groups].indexOf(cat)); return render(); }
+  if (menu === 3) { pickOption(); return render(); }
+  if (menu === 2) { const it = subItems()[subIdx]; if (it) it.act(); return render(); }
+  const c = shown[row], p = focusProg(); if (!c) return;
+  if (p && !p.none && p.start > Date.now()) return toast("Starts at " + clock(p.start));
+  play(c, false); hideGuide();
+}
+function longOk() { if (guideOpen && !menu && shown[row]) toggleFav(shown[row]); }
+let followT = 0;
+function follow() {
+  clearTimeout(followT); if (!S.follow) return;
+  followT = setTimeout(() => { const c = shown[row]; if (guideOpen && !menu && c && (!current || c.id !== current.id)) play(c, false, true); }, 700);
+}
+function back() {
+  if (!guideOpen && overlay && ovSub) { ovSub = false; ovIdx = 12; return render(); }
+  if (!guideOpen && overlay) return hideOverlay();
+  if (guideOpen && menu === 3) { menu = 2; return render(); }
+  if (guideOpen && menu === 2) { menu = 1; return render(); }
+  if (guideOpen && menu === 1) { menu = 0; return render(); }
+  if (guideOpen) { if (current) hideGuide(); else if (NATIVE) Native.exit(); else toast("In the app, Back here would exit"); return; }
+  const t = Date.now(); if (!S.confirmExit || t - lastBack < 2500) { if (NATIVE) Native.exit(); else toast("In the app, this exits"); } else { lastBack = t; toast("Press Back again to exit"); }
+}
+function move(k) {
+  if (menu === 1) {
+    if (k === "ArrowDown") mainIdx = Math.min(MAIN.length - 1, mainIdx + 1);
+    else if (k === "ArrowUp") mainIdx = Math.max(0, mainIdx - 1);
+    else if (k === "ArrowRight") { menu = 2; subIdx = MAIN[mainIdx].id === "tv" ? Math.max(0, [FAVS, ALL, ...groups].indexOf(cat)) : 0; }
+    return;
+  }
+  if (menu === 3) {
+    const n = secItems(secIdx).length;
+    if (k === "ArrowDown") optIdx = Math.min(n - 1, optIdx + 1);
+    else if (k === "ArrowUp") optIdx = Math.max(0, optIdx - 1);
+    else if (k === "ArrowLeft") menu = 2;
+    return;
+  }
+  if (menu === 2) {
+    const n = subItems().length;
+    if (k === "ArrowDown") subIdx = Math.min(n - 1, subIdx + 1);
+    else if (k === "ArrowUp") subIdx = Math.max(0, subIdx - 1);
+    else if (k === "ArrowLeft") menu = 1;
+    else if (k === "ArrowRight") { if (MAIN[mainIdx].id === "settings") { menu = 3; secIdx = subIdx; optIdx = 0; } else menu = 0; }
+    return;
+  }
+  const p = focusProg(), now = Date.now();
+  if (k === "ArrowDown") { row = Math.min(shown.length - 1, row + 1); clampRow(); follow(); }
+  else if (k === "ArrowUp") { row = Math.max(0, row - 1); clampRow(); follow(); }
+  else if (k === "ArrowRight") {
+    if (!p) return;
+    if (p.none) { if (winStart + 2 * HALF > now + 36 * 3600000) return; winStart += 2 * HALF; focusT = winStart + 1000; return; }
+    const t = p.stop + 1000; if (t > now + 36 * 3600000) return;
+    focusT = t; const q = focusProg(), qs = q.none ? focusT : q.start;
+    if (qs >= winStart + SPAN - HALF) winStart = floor30(qs);
+  } else if (k === "ArrowLeft") {
+    if (!p || (p.none ? winStart <= floor30(now) : p.start <= now)) { menu = 1; resetTime(); return; }
+    if (p.none) { winStart = Math.max(floor30(now), winStart - 2 * HALF); focusT = Math.max(now, winStart + 1000); return; }
+    focusT = Math.max(now, p.start - 1000); const q = focusProg(), qs = q.none ? focusT : q.start;
+    if (qs < winStart) winStart = Math.max(floor30(now), floor30(qs));
+  }
+}
+addEventListener("keydown", e => {
+  const k = e.key;
+  if (asking) { if (k === "Enter") { e.preventDefault(); endAsk($("aski").value); } else if (k === "Escape") { e.preventDefault(); endAsk(""); } return; }
+  if (searching) return searchKey(e);
+  if (clOpen && !guideOpen) return clistKey(e);
+  if ((k === "m" || k === "M") && guideOpen && menu === 3) { const it = secItems(secIdx)[optIdx]; if (it && it.list !== undefined) { removeList(it.list); render(); } return; }
+  if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Enter", " ", "Backspace", "Escape", "PageUp", "PageDown"].includes(k)) e.preventDefault();
+  if (guideOpen && menu === 2 && MAIN[mainIdx].id === "search") {
+    if (k.length === 1 && !e.ctrlKey && !e.metaKey) { query += k; subIdx = 0; return render(); }
+    if (k === "Backspace" && query) { query = query.slice(0, -1); subIdx = 0; return render(); }
+  }
+  if (k === "Enter") { if (e.repeat) return; okDown = Date.now(); okLong = false; okTimer = setTimeout(() => { okLong = true; longOk(); }, 600); return; }
+  if (!(guideOpen && menu === 2 && MAIN[mainIdx].id === "search")) {
+    if (k === "p" || k === "P") { if (guideOpen && !menu) sendToPip(); return; }
+    if (k === "s" || k === "S") { if (!guideOpen) swapPip(); return; }
+    if (k === "x" || k === "X") { if (pip) { startPip(null); toast("Small window closed"); } return; }
+  }
+  if ((k === "m" || k === "M") && guideOpen && menu === 2 && MAIN[mainIdx].id === "history") {
+    const it = subItems()[subIdx]; if (it && it.hid) { hist = hist.filter(h => h.id !== it.hid); store.set("hist", hist); toast("Removed from history"); } return render();
+  }
+  if (k === "m" || k === "M") { if (!guideOpen) showGuide(); else if (menu) { menu = 0; render(); } else longOk(); return; }
+  if (k === "Escape" || k === "Backspace") { if (!e.repeat) back(); return; }
+  if (!guideOpen && overlay && (k === "ArrowLeft" || k === "ArrowRight")) {
+    ovIdx = Math.max(0, Math.min(curTiles().length - 1, ovIdx + (k === "ArrowRight" ? 1 : -1))); armOverlay(); return render();
+  }
+  if (!guideOpen && overlay && k === "ArrowDown" && !ovRow) { ovRow = 1; ovSub = false; ovIdx = 0; armOverlay(); return render(); }
+  if (!guideOpen && overlay && k === "ArrowUp" && ovRow) { if (ovSub) { ovSub = false; ovIdx = 12; } else { ovRow = 0; ovIdx = 0; } armOverlay(); return render(); }
+  if (!guideOpen && overlay && k === "ArrowDown" && ovRow) return;
+  if (!guideOpen) {
+    if (overlay && k.startsWith("Arrow")) overlay = false;
+    if (k === "ArrowUp" || k === "PageUp") { if (!e.repeat) zap(-1); }
+    else if (k === "ArrowDown" || k === "PageDown") { if (!e.repeat) zap(1); }
+    else if (k === "ArrowLeft" || k === "ArrowRight") showGuide();
+    else if (k === " ") { if (NATIVE) { nPaused = !nPaused; Native.pause(nPaused); toast(nPaused ? "Paused" : "Playing"); } else if (v.paused) v.play().catch(() => {}); else v.pause(); }
+    return;
+  }
+  if (k.startsWith("Arrow")) { move(k); render(); }
+});
+addEventListener("keyup", e => { if (asking || searching || clOpen) { okDown = 0; clearTimeout(okTimer); return; } if (e.key === "Enter") { clearTimeout(okTimer); if (!okLong && okDown) ok(); okDown = 0; } });
+
+{ const dp = drawPip; drawPip = function () { dp(); syncNative(); }; }
+applySettings(); applyAspect();
+setInterval(() => { if (guideOpen) { if (!menu && focusT < Date.now() && winStart <= floor30(Date.now())) resetTime(); render(); } }, 30000);
+load();
+</script>
+</body>
+</html>
