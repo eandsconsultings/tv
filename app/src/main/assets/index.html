@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="page" content="9">
+<meta name="page" content="10">
 <meta name="api" content="2">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Onyx preview</title>
@@ -288,7 +288,12 @@ const PRESETS = [["Samsung TV Plus", "us_samsung", 1], ["Pluto TV", "us_pluto", 
   ["Local stations", "us_local", 1], ["Fire TV channels", "us_firetv", 1], ["PBS", "us_pbs", 1], ["Canada", "ca", 0], ["United Kingdom", "uk", 0]];
 if (store.get("presets", 0) < 1) {
   for (const [name, file, on] of PRESETS) { const url = IPTV + file + ".m3u"; if (!lists.some(l => l.url === url)) lists.push({ name, url, guide: "", on: !!on }); }
-  store.set("presets", 1); store.set("lists", lists.map(l => ({ name: l.name, url: l.url, guide: l.guide, on: !!l.on })));
+  store.set("lists", lists.map(l => ({ name: l.name, url: l.url, guide: l.guide, on: !!l.on, skip: l.skip || "" })));
+}
+if (store.get("presets", 0) < 2) {
+  // United Kingdom switched on, minus its pay sports channels, which are not free streams.
+  const uk = lists.find(l => l.url === IPTV + "uk.m3u"); if (uk) { uk.on = true; uk.skip = "^sky sports"; }
+  store.set("presets", 2); store.set("lists", lists.map(l => ({ name: l.name, url: l.url, guide: l.guide, on: !!l.on, skip: l.skip || "" })));
 }
 const secItems = i => typeof SECTIONS[i].items === "function" ? SECTIONS[i].items() : SECTIONS[i].items;
 function shortUrl(u) { return u.replace(/^https?:\/\//, "").replace(/^raw\.githubusercontent\.com\//, "github: ").slice(0, 44); }
@@ -298,7 +303,7 @@ function rawLink(u) {
   const m = u.match(/^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/(?:blob|raw)\/(.+)$/i);
   return m ? "https://raw.githubusercontent.com/" + m[1] + "/" + m[2] + "/" + m[3] : u;
 }
-function saveLists() { store.set("lists", lists.map(l => ({ name: l.name, url: l.url, guide: l.guide, on: !!l.on }))); }
+function saveLists() { store.set("lists", lists.map(l => ({ name: l.name, url: l.url, guide: l.guide, on: !!l.on, skip: l.skip || "" }))); }
 let loadSeq = 0;
 function reloadLists(msg) { saveLists(); if (msg) toast(msg); render(); load(true); }
 function toggleList(i) {
@@ -423,7 +428,7 @@ async function load(useCache) {
     if (plCache[l.url]) return { l, ch: plCache[l.url].ch, guide: l.guide || plCache[l.url].named || GUIDE };
     try {
       const text = await fetch(l.url, { cache: "no-store" }).then(r => { if (!r.ok) throw new Error(); return r.text(); });
-      const ch = parsePlaylist(text); if (!ch.length) throw new Error();
+      let ch = parsePlaylist(text); if (l.skip) { const re = new RegExp(l.skip, "i"); ch = ch.filter(c => !re.test(c.name)); } if (!ch.length) throw new Error();
       const named = (text.slice(0, 600).match(/(?:x-tvg-url|url-tvg)="([^"]+)"/) || [])[1];
       plCache[l.url] = { ch, named: named ? named.split(",")[0] : "" };
       return { l, ch, guide: l.guide || plCache[l.url].named || GUIDE };
