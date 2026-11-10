@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="page" content="6">
+<meta name="page" content="7">
 <meta name="api" content="2">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Onyx preview</title>
@@ -195,10 +195,12 @@ const PAGE = +((document.querySelector('meta[name="page"]') || {}).content || 0)
 window.nativeToast = m => toast(m);
 const BRAND = '<div class="brand"><svg viewBox="20 14 110 122"><defs><linearGradient id="og" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f3d98a"/><stop offset="1" stop-color="#b98a2c"/></linearGradient></defs><path d="M75 22l46 26.500v53L75 128l-46-26.500v-53z" fill="#15171c" stroke="url(#og)" stroke-width="4" stroke-linejoin="round"/><path d="M75 22v28M121 48.500L98 62M121 101.500L98 88M75 128v-28M29 101.500L52 88M29 48.500L52 62" stroke="#8a6a25" stroke-width="2"/><path d="M75 50l23 12v26l-23 12-23-12V62z" fill="#1d2027" stroke="#c9a04a" stroke-width="2" stroke-linejoin="round"/><path d="M68 63l19 12-19 12z" fill="url(#og)"/></svg><b>ONYX</b></div>';
 function nInfo() { try { return JSON.parse(Native.info()); } catch (e) { return {}; } }
+const sentBox = ["", ""];
 function syncNative() {
   if (!NATIVE) return; const d = window.devicePixelRatio || 1, W = window.innerWidth || 1, H = window.innerHeight || 1;
   // Positions go over as ten-thousandths of the screen, so they are right whatever the TV's pixel scale is.
   const send = (i, el, show) => { const r = el.getBoundingClientRect();
+    const k = [r.left, r.top, r.width, r.height, show, W, H].join(); if (sentBox[i] === k) return; sentBox[i] = k;   // nothing moved: skip the call
     if (Native.frame) Native.frame(i, Math.round(r.left / W * 10000), Math.round(r.top / H * 10000), Math.round(r.width / W * 10000), Math.round(r.height / H * 10000), show);
     else Native.layout(i, Math.round(r.left * d), Math.round(r.top * d), Math.round(r.width * d), Math.round(r.height * d), show); };
   send(0, v, true); const pe = $("pip"); send(1, pe, pe.style.display !== "none");
@@ -588,7 +590,7 @@ function drawOverlay() {
   if (!on) return;
   const c = current, now = Date.now(), l = progs[c.id] || [], p = progAt(c, now), nx = p ? l[l.indexOf(p) + 1] : null;
   $("ovcat").textContent = c.group; $("ovclock").textContent = new Date(now).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + ", " + clock(now);
-  let h = '<div class="lg">' + (c.logo ? '<img src="' + esc(c.logo) + '" alt="" onerror="this.remove()">' : "") + "</div><div><h1>" + esc(p && !p.filler ? p.title : c.name) + "</h1>";
+  let h = '<div class="lg">' + (c.logo ? '<img decoding="async" src="' + esc(c.logo) + '" alt="" onerror="this.remove()">' : "") + "</div><div><h1>" + esc(p && !p.filler ? p.title : c.name) + "</h1>";
   let pct = 0;
   if (p && !p.filler) { pct = (now - p.start) * 100 / (p.stop - p.start);
     h += '<div class="l"><span>' + esc(range(p)) + '</span><span class="pb"><i style="width:' + pct.toFixed(0) + '%"></i></span><span>' + Math.max(1, Math.round((p.stop - now) / 60000)) + " min</span><span>" + esc(c.name) + "</span></div>";
@@ -602,7 +604,7 @@ function drawOverlay() {
     T.innerHTML = ts.slice(from, from + 9).map((t, i) => '<div class="tool' + (i + from === ovIdx ? " f" : "") + '"><i><svg viewBox="0 0 24 24"' + (t.on ? ' style="fill:currentColor"' : "") + ">" + t.icon + "</svg></i><span>" + esc(t.label) + "</span></div>").join(""); return; }
   const from = Math.max(0, Math.min(ovIdx - 5, ts.length - 7));
   T.innerHTML = ts.slice(from, from + 7).map((t, i) => '<div class="tile' + (i + from === ovIdx ? " f" : "") + '">' +
-    (t.icon ? '<svg viewBox="0 0 24 24"' + (t.on ? ' style="fill:currentColor"' : "") + ">" + t.icon + "</svg>" : t.logo ? '<img src="' + esc(t.logo) + '" alt="" onerror="this.remove()">' : "") + "<span>" + esc(t.label) + "</span></div>").join("");
+    (t.icon ? '<svg viewBox="0 0 24 24"' + (t.on ? ' style="fill:currentColor"' : "") + ">" + t.icon + "</svg>" : t.logo ? '<img decoding="async" src="' + esc(t.logo) + '" alt="" onerror="this.remove()">' : "") + "<span>" + esc(t.label) + "</span></div>").join("");
 }
 
 // ---------- second channel window ----------
@@ -665,7 +667,11 @@ function toggleFav(c) {
   render();
 }
 
-function render() {
+// Many key presses can land between two screen frames (holding a button down, for one).
+// They all share a single redraw on the next frame instead of redrawing once each.
+let drawQueued = false;
+function render() { if (drawQueued) return; drawQueued = true; requestAnimationFrame(() => { drawQueued = false; renderNow(); }); }
+function renderNow() {
   if (guideOpen && menu === 2 && MAIN[mainIdx].id === "search" && !searching) { menu = 1; openSearch(); }
   const glass = S.glass !== "Small window";
   v.className = guideOpen && !glass ? "mini" : "";
@@ -673,7 +679,7 @@ function render() {
   $("guide").className = glass ? "glass" : "";
   const bl = $("biglogo"), fc = shown[row];
   bl.style.display = guideOpen && glass ? "flex" : "none";
-  bl.innerHTML = fc && fc.logo ? '<img src="' + esc(fc.logo) + '" alt="" onerror="this.remove()">' : "";
+  bl.innerHTML = fc && fc.logo ? '<img decoding="async" src="' + esc(fc.logo) + '" alt="" onerror="this.remove()">' : "";
   drawOverlay();
   drawPip();
   drawClist();
@@ -697,7 +703,7 @@ function render() {
   for (let i = topRow; i < Math.min(shown.length, topRow + VISIBLE + 1); i++) {
     const c = shown[i], y = (i - topRow) * ROW;
     html += '<div class="r' + (current && current.id === c.id ? " cur" : "") + '" style="top:' + y + 'px"><div class="cn"><div class="no">' + (S.numbers ? i + 1 : "") + '</div><div class="lg">' +
-      (c.logo && S.logos ? '<img src="' + esc(c.logo) + '" alt="" onerror="this.remove()">' : "") + '</div><div class="nm">' + (favs.has(c.id) ? "★ " : "") + esc(c.name) + "</div></div>";
+      (c.logo && S.logos ? '<img decoding="async" src="' + esc(c.logo) + '" alt="" onerror="this.remove()">' : "") + '</div><div class="nm">' + (favs.has(c.id) ? "★ " : "") + esc(c.name) + "</div></div>";
     const list = (progs[c.id] || []).filter(p => p.stop > winStart && p.start < winStart + SPAN);
     const cells = list.length ? list : [{ start: winStart, stop: winStart + SPAN, title: "No information", none: true }];
     for (const p of cells) {
@@ -771,7 +777,7 @@ function drawSearch() {
       if (row.k === "shows") { const { c, p } = r.shows[j]; const live = p.start <= now;
         h += '<div class="card' + f + '"><div><div class="when">' + (live ? "ON NOW" : (dayLabel(p.start) + " " + clock(p.start)).toUpperCase()) + "</div><b>" + esc(p.title) + "</b></div><small>" + esc(c.name) + "</small></div>"; }
       else { const c = r.chans[j], p = progAt(c, now);
-        h += '<div class="card' + f + '">' + (c.logo ? '<img src="' + esc(c.logo) + '" onerror="this.remove()">' : "<span></span>") + "<div><b style=\"-webkit-line-clamp:2\">" + esc(c.name) + "</b><small>" + esc(p && !p.filler ? p.title : (c.group || "")) + "</small></div></div>"; }
+        h += '<div class="card' + f + '">' + (c.logo ? '<img decoding="async" src="' + esc(c.logo) + '" onerror="this.remove()">' : "<span></span>") + "<div><b style=\"-webkit-line-clamp:2\">" + esc(c.name) + "</b><small>" + esc(p && !p.filler ? p.title : (c.group || "")) + "</small></div></div>"; }
     }
     h += "</div>";
   });
