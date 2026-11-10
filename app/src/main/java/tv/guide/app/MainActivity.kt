@@ -24,6 +24,7 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
+import androidx.core.content.FileProvider
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
@@ -70,6 +71,7 @@ class MainActivity : Activity() {
     private var shownPage = 0
     private var startedAt = 0L
     private var touched = false
+    private var lastInstallError = ""
 
     private val ticker = object : Runnable {
         override fun run() {
@@ -236,24 +238,49 @@ class MainActivity : Activity() {
     }
 
     private fun checkUpdate() {
+        val mine = myVersion()
+        var latest: Int? = null
         try {
             val body = String(get("https://api.github.com/repos/eandsconsultings/tv/commits/apk"), Charsets.UTF_8)
-            val latest = Regex("\"message\"\\s*:\\s*\"Build (\\d+)").find(body)?.groupValues?.get(1)?.toIntOrNull()
-            val mine = myVersion()
-            if (latest == null) {
-                say("Couldn't check for an app update")
-            } else if (latest <= mine) {
-                say("You have the latest app (0.$mine)")
-            } else {
-                say("Downloading app 0.$latest...")
-                install(get(APK_URL + "?t=" + System.currentTimeMillis()))
-            }
+            latest = Regex("\"message\"\\s*:\\s*\"Build (\\d+)").find(body)?.groupValues?.get(1)?.toIntOrNull()
         } catch (e: Exception) {
-            say("Couldn't check for an app update")
+        }
+        if (latest != null && latest <= mine) {
+            say("You have the latest app (0.$mine)")
+            return
+        }
+        say(if (latest != null) "Downloading app 0.$latest..." else "Downloading the latest app...")
+        val apk = try {
+            get(APK_URL + "?t=" + System.currentTimeMillis())
+        } catch (e: Exception) {
+            say("Couldn't download the update. Check the connection.")
+            return
+        }
+        ui.post { install(apk) }
+    }
+
+    /** Hands the downloaded app to the device's own installer, the same way Downloader does. */
+    private fun install(apk: ByteArray) {
+        try {
+            val f = File(cacheDir, "update.apk")
+            f.writeBytes(apk)
+            val uri = FileProvider.getUriForFile(this, "$packageName.files", f)
+            val open = Intent(Intent.ACTION_VIEW)
+                .setDataAndType(uri, "application/vnd.android.package-archive")
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(open)
+            return
+        } catch (e: Exception) {
+            lastInstallError = e.javaClass.simpleName + ": " + (e.message ?: "")
+        }
+        try {
+            installBySession(apk)
+        } catch (e: Exception) {
+            say("The update couldn't start (" + lastInstallError + " / " + e.javaClass.simpleName + ")")
         }
     }
 
-    private fun install(apk: ByteArray) {
+    private fun installBySession(apk: ByteArray) {
         val installer = packageManager.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
         val session = installer.openSession(installer.createSession(params))
@@ -280,7 +307,8 @@ class MainActivity : Activity() {
                 say("The update couldn't open the install prompt")
             }
         } else if (status != PackageInstaller.STATUS_SUCCESS && status != -99) {
-            say("The update didn't install. Allow Onyx under Install unknown apps, then try again.")
+            val why = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: ""
+            say("The update didn't install (" + status + " " + why + ")")
         }
     }
 
