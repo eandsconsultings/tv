@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="page" content="4">
+<meta name="page" content="5">
 <meta name="api" content="2">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Onyx preview</title>
@@ -50,7 +50,7 @@ video.mini{left:16px;top:12px;width:320px;height:180px;border-radius:8px}
 #m1.thin{width:54px}
 .brand{position:absolute;left:0;right:0;top:22px;display:flex;flex-direction:column;align-items:center;gap:6px}
 .brand svg{width:46px;height:46px}.brand b{font-size:13px;font-weight:500;letter-spacing:.42em;padding-left:.42em}
-#m1.thin .brand b{display:none}
+#m1.thin .brand b{display:none}#m1.thin .brand svg{width:34px;height:34px}
 .mi{display:flex;align-items:center;gap:12px;margin:4px 10px;padding:9px 12px;border-radius:6px;font-size:16px;font-weight:500;white-space:nowrap;overflow:hidden}
 .mi svg{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .mi.f{background:var(--m1f);color:var(--m1ffg,inherit)}
@@ -852,6 +852,8 @@ function drawMenu() {
   m2.style.display = guideOpen && menu ? "block" : "none";
   $("m3").style.display = guideOpen && menu === 3 ? "block" : "none";
   if (!guideOpen || !menu) return;
+  if (menu !== 2 && menu !== 3) thinMenu = false;
+  m1.className = thinMenu ? "thin" : ""; m2.style.left = (thinMenu ? 54 : 176) + "px"; $("m3").style.left = (thinMenu ? 324 : 446) + "px";
   m1.innerHTML = BRAND + MAIN.map((x, i) => '<div class="mi' + (i === mainIdx ? (menu === 1 ? " f" : " on") : "") + '"><svg viewBox="0 0 24 24">' + x.icon + "</svg><span>" + x.label + "</span></div>").join("");
   const id = MAIN[mainIdx].id, items = subItems();
   if (subIdx >= items.length) subIdx = Math.max(0, items.length - 1);
@@ -912,11 +914,12 @@ function back() {
   if (!guideOpen && overlay && ovSub) { ovSub = false; ovIdx = 12; return render(); }
   if (!guideOpen && overlay) return hideOverlay();
   if (guideOpen && menu === 3) { menu = 2; return render(); }
-  if (guideOpen && menu === 2) { menu = 1; return render(); }
+  if (guideOpen && menu === 2) { menu = thinMenu ? 0 : 1; return render(); }
   if (guideOpen && menu === 1) { menu = 0; return render(); }
   if (guideOpen) { if (current) hideGuide(); else if (NATIVE) Native.exit(); else toast("In the app, Back here would exit"); return; }
   const t = Date.now(); if (!S.confirmExit || t - lastBack < 2500) { if (NATIVE) Native.exit(); else toast("In the app, this exits"); } else { lastBack = t; toast("Press Back again to exit"); }
 }
+let thinMenu = false;
 function move(k) {
   if (menu === 1) {
     if (k === "ArrowDown") mainIdx = Math.min(MAIN.length - 1, mainIdx + 1);
@@ -935,7 +938,7 @@ function move(k) {
     const n = subItems().length;
     if (k === "ArrowDown") subIdx = Math.min(n - 1, subIdx + 1);
     else if (k === "ArrowUp") subIdx = Math.max(0, subIdx - 1);
-    else if (k === "ArrowLeft") menu = 1;
+    else if (k === "ArrowLeft") { menu = 1; thinMenu = false; }
     else if (k === "ArrowRight") { if (MAIN[mainIdx].id === "settings") { menu = 3; secIdx = subIdx; optIdx = 0; } else menu = 0; }
     return;
   }
@@ -949,7 +952,7 @@ function move(k) {
     focusT = t; const q = focusProg(), qs = q.none ? focusT : q.start;
     if (qs >= winStart + SPAN - HALF) winStart = floor30(qs);
   } else if (k === "ArrowLeft") {
-    if (!p || (p.none ? winStart <= floor30(now) : p.start <= now)) { menu = 1; resetTime(); return; }
+    if (!p || (p.none ? winStart <= floor30(now) : p.start <= now)) { menu = 2; thinMenu = true; mainIdx = MAIN.findIndex(m => m.id === "tv"); subIdx = Math.max(0, [FAVS, ALL, ...groups].indexOf(cat)); resetTime(); return; }
     if (p.none) { winStart = Math.max(floor30(now), winStart - 2 * HALF); focusT = Math.max(now, winStart + 1000); return; }
     focusT = Math.max(now, p.start - 1000); const q = focusProg(), qs = q.none ? focusT : q.start;
     if (qs < winStart) winStart = Math.max(floor30(now), floor30(qs));
