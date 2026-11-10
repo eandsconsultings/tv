@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="page" content="7">
+<meta name="page" content="8">
 <meta name="api" content="2">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Onyx preview</title>
@@ -274,7 +274,7 @@ const SECTIONS = [
     { k: "pipHome", label: "Keep playing in a corner on Home", sub: "May not work on all devices", type: "toggle", def: false },
     { label: "How to use", type: "info", value: () => "In the guide, press Play/Pause on a channel to add it as the second picture. While watching: Fast-forward swaps the two, Rewind closes the second one." } ] },
   { label: "About", items: [
-    { label: "Version", type: "info", value: () => (NATIVE && Native.version ? "App " + Native.version() : "Browser preview") + "  \u00B7  screen " + PAGE },
+    { label: "Version", type: "info", value: () => (NATIVE && Native.version ? "Onyx " + Native.version() : "Browser preview") + "  \u00B7  screen " + PAGE },
     { label: "Check for app update", sub: "Downloads and installs a newer app if there is one", type: "act", act: () => { if (NATIVE && Native.checkUpdate) { toast("Checking..."); Native.checkUpdate(); } else toast("Only in the TV app") } },
     { label: "Refresh the screen now", sub: "Menus and design update on their own each time the app opens", type: "act", act: () => { if (NATIVE && Native.refresh) { toast("Checking..."); Native.refresh(); } else toast("Only in the TV app") } },
     { label: "Statistics", type: "info", value: () => "None collected" } ] }
