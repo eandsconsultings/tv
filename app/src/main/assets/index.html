@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="page" content="8">
+<meta name="page" content="9">
 <meta name="api" content="2">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Onyx preview</title>
@@ -282,6 +282,14 @@ const SECTIONS = [
 // ---------- playlists ----------
 let lists = store.get("lists", null) || [{ name: "My channels", url: PLAYLIST, guide: GUIDE }];
 if (!lists.some(l => l.on)) lists[Math.min(store.get("listIdx", 0), lists.length - 1)].on = true;
+// Free-channel playlists from the public iptv-org index, added once. Remove any of them with Menu.
+const IPTV = "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/";
+const PRESETS = [["Samsung TV Plus", "us_samsung", 1], ["Pluto TV", "us_pluto", 1], ["Tubi", "us_tubi", 1], ["Stirr", "us_stirr", 1], ["Xumo", "us_xumo", 1],
+  ["Local stations", "us_local", 1], ["Fire TV channels", "us_firetv", 1], ["PBS", "us_pbs", 1], ["Canada", "ca", 0], ["United Kingdom", "uk", 0]];
+if (store.get("presets", 0) < 1) {
+  for (const [name, file, on] of PRESETS) { const url = IPTV + file + ".m3u"; if (!lists.some(l => l.url === url)) lists.push({ name, url, guide: "", on: !!on }); }
+  store.set("presets", 1); store.set("lists", lists.map(l => ({ name: l.name, url: l.url, guide: l.guide, on: !!l.on })));
+}
 const secItems = i => typeof SECTIONS[i].items === "function" ? SECTIONS[i].items() : SECTIONS[i].items;
 function shortUrl(u) { return u.replace(/^https?:\/\//, "").replace(/^raw\.githubusercontent\.com\//, "github: ").slice(0, 44); }
 // Accept a normal GitHub page link and turn it into the raw file link.
@@ -369,7 +377,7 @@ function parsePlaylist(text) {
       title = line.slice(line.lastIndexOf(",") + 1).trim();
     } else if (line && !line.startsWith("#")) {
       if (info) {
-        const name = info["tvg-name"] || title, id = info["tvg-id"] || name;
+        const name = info["tvg-name"] || title, id = (info["tvg-id"] || "").split("@")[0] || name;
         out.push({ id, name, group: info["group-title"] || "", logo: info["tvg-logo"] || "", url: line });
       }
       info = null;
@@ -426,7 +434,7 @@ async function load(useCache) {
   for (const g of got) {
     g.l.failed = !g.ch; g.l.count = g.ch ? g.ch.length : 0;
     if (!g.ch) { toast("Couldn't load " + g.l.name); continue; }
-    for (const c of g.ch) { if (seen.has(c.url)) continue; seen.add(c.url); c.src = g.l.name; merged.push(c); }
+    for (const c of g.ch) { if (seen.has(c.url)) continue; seen.add(c.url); c.src = g.l.name; if (!c.group) c.group = g.l.name; merged.push(c); }
     if (!guides.includes(g.guide)) guides.push(g.guide);
   }
   if (!merged.length) {
@@ -887,6 +895,7 @@ function drawMenu() {
     o += '<div class="oi' + (i === optIdx ? " f" : "") + (it.type === "later" ? " dim" : "") + '"><div class="tx">' + esc(it.label) + (sub ? "<small>" + esc(sub) + "</small>" : "") + "</div>" + right + "</div>";
   });
   m3.innerHTML = o;
+  const f = m3.querySelector(".oi.f"); m3.scrollTop = f ? Math.max(0, f.offsetTop + f.offsetHeight - m3.clientHeight + 16) : 0;   // keep the highlighted row on screen
 }
 function pickOption() {
   const it = secItems(secIdx)[optIdx]; if (!it) return;
