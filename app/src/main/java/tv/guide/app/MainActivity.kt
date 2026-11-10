@@ -32,6 +32,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
@@ -348,6 +349,11 @@ class MainActivity : Activity() {
         val p = ExoPlayer.Builder(this)
             .setMediaSourceFactory(DefaultMediaSourceFactory(this).setDataSourceFactory(http))
             .setReleaseTimeoutMs(400L)
+            // Start showing a channel after one second of video is loaded instead of the
+            // default two and a half, so changing channels feels quicker.
+            .setLoadControl(DefaultLoadControl.Builder()
+                .setBufferDurationsMs(15000, 50000, 1000, 2500)
+                .build())
             .build()
         p.addListener(object : Player.Listener {
             override fun onPlayerError(error: PlaybackException) {
