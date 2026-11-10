@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="page" content="2">
+<meta name="api" content="2">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Guide TV preview</title>
 <style>
@@ -186,6 +188,8 @@ const NATIVE = !!window.Native; let nPaused = false;
 if (NATIVE) document.documentElement.classList.add("native");
 window.tvKey = (type, key, repeat) => dispatchEvent(new KeyboardEvent(type, { key, repeat: !!repeat, cancelable: true }));
 window.nativeError = i => { if (i === 0) { if (current) recover(); } else if (pip) { toast(pip.name + " isn't playing in the second window"); startPip(null); render(); } };
+const PAGE = +((document.querySelector('meta[name="page"]') || {}).content || 0);
+window.nativeToast = m => toast(m);
 function nInfo() { try { return JSON.parse(Native.info()); } catch (e) { return {}; } }
 function syncNative() {
   if (!NATIVE) return; const d = window.devicePixelRatio || 1;
@@ -261,8 +265,9 @@ const SECTIONS = [
     { k: "pipHome", label: "Keep playing in a corner on Home", sub: "May not work on all devices", type: "toggle", def: false },
     { label: "How to use", type: "info", value: () => "In the guide, press Play/Pause on a channel to add it as the second picture. While watching: Fast-forward swaps the two, Rewind closes the second one." } ] },
   { label: "About", items: [
-    { label: "Version", type: "info", value: () => "Browser preview" },
-    { label: "Check for updates", type: "later" },
+    { label: "Version", type: "info", value: () => (NATIVE && Native.version ? "App " + Native.version() : "Browser preview") + "  \u00B7  screen " + PAGE },
+    { label: "Check for app update", sub: "Downloads and installs a newer app if there is one", type: "act", act: () => { if (NATIVE && Native.checkUpdate) { toast("Checking..."); Native.checkUpdate(); } else toast("Only in the TV app") } },
+    { label: "Refresh the screen now", sub: "Menus and design update on their own each time the app opens", type: "act", act: () => { if (NATIVE && Native.refresh) { toast("Checking..."); Native.refresh(); } else toast("Only in the TV app") } },
     { label: "Statistics", type: "info", value: () => "None collected" } ] }
 ];
 // ---------- playlists ----------
