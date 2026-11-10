@@ -1,0 +1,17 @@
+name: Keep signing key
+# The app's signing key lives in the build cache, which GitHub clears after a week
+# without use. This touches it twice a week so it is never cleared.
+on:
+  schedule:
+    - cron: "41 9 * * 1,4"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  touch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/cache/restore@v4
+        with:
+          path: signing/onyx.keystore
+          key: onyx-signing-key-1

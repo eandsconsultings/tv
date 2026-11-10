@@ -5,6 +5,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+concurrency:
+  group: build-app
+  cancel-in-progress: false
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -21,9 +24,15 @@ jobs:
         with:
           gradle-version: "8.9"
       - uses: actions/cache@v4
+        id: signing
         with:
-          path: ~/.android/debug.keystore
-          key: signing-key-v1
+          path: signing/onyx.keystore
+          key: onyx-signing-key-1
+      - name: Create the signing key (first build only)
+        if: steps.signing.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p signing
+          keytool -genkeypair -keystore signing/onyx.keystore -storetype PKCS12 -storepass onyxtv -keypass onyxtv -alias onyx -keyalg RSA -keysize 2048 -sigalg SHA256withRSA -validity 12000 -dname "CN=Onyx TV"
       - run: gradle --no-daemon assembleDebug
       - name: Publish
         run: |
