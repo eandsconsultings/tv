@@ -59,6 +59,7 @@ class MainActivity : Activity() {
     private val clock = SimpleDateFormat("h:mm a", Locale.US)
 
     private lateinit var player: ExoPlayer
+    private lateinit var playerView: PlayerView
     private lateinit var guide: LinearLayout
     private lateinit var catList: RecyclerView
     private lateinit var chList: RecyclerView
@@ -79,6 +80,9 @@ class MainActivity : Activity() {
     private var lastBack = 0L
     private var loading = false
     private var ticks = 0
+    private var stalledFor = 0L
+    private var lastPos = -1L
+    private var retries = 0
 
     private fun prefs() = getSharedPreferences("tv", Context.MODE_PRIVATE)
 
@@ -113,33 +117,19 @@ class MainActivity : Activity() {
         buildUi()
         load(false)
         ui.postDelayed(tick, 30000L)
+        ui.postDelayed(watchdog, 2000L)
     }
 
     private fun buildUi() {
         val root = FrameLayout(this)
         root.setBackgroundColor(Color.BLACK)
 
-        val http = DefaultHttpDataSource.Factory()
-            .setAllowCrossProtocolRedirects(true)
-            .setUserAgent("Mozilla/5.0 (Linux; Android 9) AppleWebKit/537.36 GuideTV")
-            .setConnectTimeoutMs(12000)
-            .setReadTimeoutMs(15000)
-        player = ExoPlayer.Builder(this)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(this).setDataSourceFactory(http))
-            .build()
-        player.addListener(object : Player.Listener {
-            override fun onPlayerError(error: PlaybackException) {
-                val name = current?.name ?: "This channel"
-                toast("$name isn't playing right now")
-                showGuide()
-            }
-        })
-        val pv = PlayerView(this)
-        pv.useController = false
-        pv.isFocusable = false
-        pv.setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
-        pv.player = player
-        root.addView(pv, FrameLayout.LayoutParams(MATCH, MATCH))
+        playerView = PlayerView(this)
+        playerView.useController = false
+        playerView.isFocusable = false
+        playerView.setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+        root.addView(playerView, FrameLayout.LayoutParams(MATCH, MATCH))
+        newPlayer()
 
         guide = LinearLayout(this)
         guide.orientation = LinearLayout.VERTICAL
@@ -198,6 +188,101 @@ class MainActivity : Activity() {
         root.addView(status, FrameLayout.LayoutParams(WRAP, WRAP, Gravity.CENTER))
 
         setContentView(root)
+    }
+
+    // ---------- player and freeze recovery ----------
+
+    /** Builds a fresh player. Used at start and whenever the old one locks up. */
+    private fun newPlayer() {
+        val http = DefaultHttpDataSource.Factory()
+            .setAllowCrossProtocolRedirects(true)
+            .setUserAgent("Mozilla/5.0 (Linux; Android 9) AppleWebKit/537.36 GuideTV")
+            .setConnectTimeoutMs(10000)
+            .setReadTimeoutMs(12000)
+        val p = ExoPlayer.Builder(this)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(this).setDataSourceFactory(http))
+            .setReleaseTimeoutMs(400L)
+            .build()
+        p.addListener(object : Player.Listener {
+            override fun onPlayerError(error: PlaybackException) {
+                if (p === player) recover()
+            }
+        })
+        playerView.player = p
+        player = p
+    }
+
+    /** Throws the old player away, stuck decoder and all, and starts clean. */
+    private fun resetPlayer() {
+        val old = player
+        playerView.player = null
+        try {
+            old.release()
+        } catch (e: Exception) {
+        }
+        newPlayer()
+    }
+
+    private fun start(c: Channel) {
+        stalledFor = 0L
+        lastPos = -1L
+        val item = MediaItem.Builder().setUri(Uri.parse(c.url))
+        val u = c.url.lowercase(Locale.US).substringBefore('?')
+        if (u.endsWith(".mpd")) {
+            item.setMimeType(MimeTypes.APPLICATION_MPD)
+        } else if (!(u.endsWith(".mp4") || u.endsWith(".mkv") || u.endsWith(".flv") ||
+                    u.endsWith(".mp3") || u.endsWith(".aac") || u.endsWith(".ts"))
+        ) {
+            item.setMimeType(MimeTypes.APPLICATION_M3U8)
+        }
+        player.setMediaItem(item.build())
+        player.prepare()
+        player.playWhenReady = true
+    }
+
+    /** Called when a stream errors out or stops moving. Reconnects twice, then gives up. */
+    private fun recover() {
+        val c = current ?: return
+        retries++
+        if (retries <= 2) {
+            banner.text = c.name + "\nReconnecting... (try " + retries + " of 2)"
+            banner.visibility = View.VISIBLE
+            ui.removeCallbacks(hideBanner)
+            ui.postDelayed(hideBanner, 4500L)
+            resetPlayer()
+            start(c)
+        } else {
+            retries = 0
+            stalledFor = 0L
+            resetPlayer()
+            toast(c.name + " isn't playing right now")
+            showGuide()
+        }
+    }
+
+    private val watchdog = object : Runnable {
+        override fun run() {
+            ui.postDelayed(this, 2000L)
+            if (current == null || !player.playWhenReady) {
+                stalledFor = 0L
+                return
+            }
+            val state = player.playbackState
+            if (state == Player.STATE_IDLE) return
+            val pos = player.currentPosition
+            val moving = state == Player.STATE_READY && pos != lastPos
+            lastPos = pos
+            if (moving) {
+                stalledFor = 0L
+                retries = 0
+            } else {
+                stalledFor += 2000L
+                if (stalledFor >= 12000L) {
+                    stalledFor = 0L
+                    recover()
+                }
+            }
+        }
     }
 
     // ---------- data ----------
@@ -339,18 +424,15 @@ class MainActivity : Activity() {
     private fun play(c: Channel, showBanner: Boolean) {
         current = c
         prefs().edit().putString("last", c.id).apply()
-        val item = MediaItem.Builder().setUri(Uri.parse(c.url))
-        val u = c.url.lowercase(Locale.US).substringBefore('?')
-        if (u.endsWith(".mpd")) {
-            item.setMimeType(MimeTypes.APPLICATION_MPD)
-        } else if (!(u.endsWith(".mp4") || u.endsWith(".mkv") || u.endsWith(".flv") ||
-                    u.endsWith(".mp3") || u.endsWith(".aac") || u.endsWith(".ts"))
-        ) {
-            item.setMimeType(MimeTypes.APPLICATION_M3U8)
+        retries = 0
+        // If the last stream was stuck or had failed, don't reuse that player.
+        if (stalledFor >= 4000L || player.playerError != null) {
+            resetPlayer()
+        } else {
+            player.stop()
+            player.clearMediaItems()
         }
-        player.setMediaItem(item.build())
-        player.prepare()
-        player.playWhenReady = true
+        start(c)
         if (showBanner) showBanner(c)
         refreshRows()
     }
