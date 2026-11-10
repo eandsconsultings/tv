@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="page" content="5">
+<meta name="page" content="6">
 <meta name="api" content="2">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Onyx preview</title>
@@ -852,7 +852,7 @@ function drawMenu() {
   m2.style.display = guideOpen && menu ? "block" : "none";
   $("m3").style.display = guideOpen && menu === 3 ? "block" : "none";
   if (!guideOpen || !menu) return;
-  if (menu !== 2 && menu !== 3) thinMenu = false;
+  thinMenu = menu >= 2;   // the main column is slim whenever focus is to its right
   m1.className = thinMenu ? "thin" : ""; m2.style.left = (thinMenu ? 54 : 176) + "px"; $("m3").style.left = (thinMenu ? 324 : 446) + "px";
   m1.innerHTML = BRAND + MAIN.map((x, i) => '<div class="mi' + (i === mainIdx ? (menu === 1 ? " f" : " on") : "") + '"><svg viewBox="0 0 24 24">' + x.icon + "</svg><span>" + x.label + "</span></div>").join("");
   const id = MAIN[mainIdx].id, items = subItems();
@@ -914,7 +914,7 @@ function back() {
   if (!guideOpen && overlay && ovSub) { ovSub = false; ovIdx = 12; return render(); }
   if (!guideOpen && overlay) return hideOverlay();
   if (guideOpen && menu === 3) { menu = 2; return render(); }
-  if (guideOpen && menu === 2) { menu = thinMenu ? 0 : 1; return render(); }
+  if (guideOpen && menu === 2) { menu = MAIN[mainIdx].id === "tv" ? 0 : 1; return render(); }
   if (guideOpen && menu === 1) { menu = 0; return render(); }
   if (guideOpen) { if (current) hideGuide(); else if (NATIVE) Native.exit(); else toast("In the app, Back here would exit"); return; }
   const t = Date.now(); if (!S.confirmExit || t - lastBack < 2500) { if (NATIVE) Native.exit(); else toast("In the app, this exits"); } else { lastBack = t; toast("Press Back again to exit"); }
