@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="page" content="2">
+<meta name="page" content="3">
 <meta name="api" content="2">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Guide TV preview</title>
@@ -192,8 +192,11 @@ const PAGE = +((document.querySelector('meta[name="page"]') || {}).content || 0)
 window.nativeToast = m => toast(m);
 function nInfo() { try { return JSON.parse(Native.info()); } catch (e) { return {}; } }
 function syncNative() {
-  if (!NATIVE) return; const d = window.devicePixelRatio || 1;
-  const send = (i, el, show) => { const r = el.getBoundingClientRect(); Native.layout(i, Math.round(r.left * d), Math.round(r.top * d), Math.round(r.width * d), Math.round(r.height * d), show); };
+  if (!NATIVE) return; const d = window.devicePixelRatio || 1, W = window.innerWidth || 1, H = window.innerHeight || 1;
+  // Positions go over as ten-thousandths of the screen, so they are right whatever the TV's pixel scale is.
+  const send = (i, el, show) => { const r = el.getBoundingClientRect();
+    if (Native.frame) Native.frame(i, Math.round(r.left / W * 10000), Math.round(r.top / H * 10000), Math.round(r.width / W * 10000), Math.round(r.height / H * 10000), show);
+    else Native.layout(i, Math.round(r.left * d), Math.round(r.top * d), Math.round(r.width * d), Math.round(r.height * d), show); };
   send(0, v, true); const pe = $("pip"); send(1, pe, pe.style.display !== "none");
 }
 const v = $("v");
