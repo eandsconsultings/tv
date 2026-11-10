@@ -2,9 +2,13 @@ package tv.guide.app
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageInstaller
 import android.graphics.Color
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -34,6 +38,11 @@ import androidx.media3.ui.PlayerView
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.IOException
+import java.net.HttpURLConnection
+import java.net.URL
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicIntegerArray
 import java.util.concurrent.atomic.AtomicLongArray
@@ -58,6 +67,9 @@ class MainActivity : Activity() {
     private var paused = false
     private var typing = false
     private var stopped = false
+    private var shownPage = 0
+    private var startedAt = 0L
+    private var touched = false
 
     private val ticker = object : Runnable {
         override fun run() {
@@ -125,8 +137,160 @@ class MainActivity : Activity() {
             FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
         setContentView(root)
         web.requestFocus()
-        web.loadUrl("file:///android_asset/index.html")
+        startedAt = System.currentTimeMillis()
+        showPage(bestLocalPage())
         ui.post(ticker)
+        Thread { refreshPage(false) }.start()
+        handleInstall(intent)
+    }
+
+    // ---------- the screen updates itself ----------
+    // The newest screen is fetched from GitHub each time the app opens. The copy built
+    // into the app is the fallback, so the app still works with no connection.
+
+    private fun pageFile() = File(filesDir, "index.html")
+
+    private fun number(html: String, name: String): Int =
+        Regex("name=\"" + name + "\" content=\"(\\d+)\"").find(html)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+
+    private fun usable(html: String): Boolean =
+        html.contains("</html>") && html.contains("tvKey") && number(html, "api") <= API
+
+    private fun bestLocalPage(): String {
+        val built = assets.open("index.html").bufferedReader().use { it.readText() }
+        val saved = try {
+            if (pageFile().exists()) pageFile().readText() else ""
+        } catch (e: Exception) {
+            ""
+        }
+        return if (usable(saved) && number(saved, "page") > number(built, "page")) saved else built
+    }
+
+    private fun showPage(html: String) {
+        shownPage = number(html, "page")
+        try {
+            val f = pageFile()
+            if (!f.exists() || f.readText() != html) f.writeText(html)
+            web.loadUrl(Uri.fromFile(f).toString())
+        } catch (e: Exception) {
+            web.loadUrl("file:///android_asset/index.html")
+        }
+    }
+
+    private fun get(address: String): ByteArray {
+        var url = URL(address)
+        for (hop in 0..5) {
+            val c = url.openConnection() as HttpURLConnection
+            c.connectTimeout = 10000
+            c.readTimeout = 30000
+            c.setRequestProperty("User-Agent", "GuideTV")
+            val code = c.responseCode
+            if (code == 200) {
+                try {
+                    val out = ByteArrayOutputStream()
+                    c.inputStream.use { it.copyTo(out) }
+                    return out.toByteArray()
+                } finally {
+                    c.disconnect()
+                }
+            }
+            val next = c.getHeaderField("Location")
+            c.disconnect()
+            if (code in 300..399 && next != null) url = URL(url, next) else throw IOException("HTTP $code")
+        }
+        throw IOException("Too many redirects")
+    }
+
+    /** Runs off the main thread. asked = the user pressed "Refresh the screen now". */
+    private fun refreshPage(asked: Boolean) {
+        try {
+            val html = String(get(PAGE_URL + "?t=" + System.currentTimeMillis()), Charsets.UTF_8)
+            if (!usable(html) || number(html, "page") <= shownPage) {
+                if (asked) say(if (usable(html) || html.isEmpty()) "The screen is already up to date" else "A newer screen needs a newer app. Use Check for app update.")
+                return
+            }
+            ui.post {
+                val early = System.currentTimeMillis() - startedAt < 8000L && !touched
+                if (asked || early) {
+                    showPage(html)
+                } else {
+                    try {
+                        pageFile().writeText(html)
+                    } catch (e: Exception) {
+                    }
+                    say("Screen update downloaded. It shows the next time you open the app.")
+                }
+            }
+        } catch (e: Exception) {
+            if (asked) say("Couldn't reach the update. Check the connection.")
+        }
+    }
+
+    // ---------- app updates ----------
+
+    @Suppress("DEPRECATION")
+    private fun myVersion(): Int = try {
+        packageManager.getPackageInfo(packageName, 0).versionCode
+    } catch (e: Exception) {
+        0
+    }
+
+    private fun checkUpdate() {
+        try {
+            val body = String(get("https://api.github.com/repos/eandsconsultings/tv/commits/apk"), Charsets.UTF_8)
+            val latest = Regex("\"message\"\\s*:\\s*\"Build (\\d+)").find(body)?.groupValues?.get(1)?.toIntOrNull()
+            val mine = myVersion()
+            if (latest == null) {
+                say("Couldn't check for an app update")
+            } else if (latest <= mine) {
+                say("You have the latest app (0.$mine)")
+            } else {
+                say("Downloading app 0.$latest...")
+                install(get(APK_URL + "?t=" + System.currentTimeMillis()))
+            }
+        } catch (e: Exception) {
+            say("Couldn't check for an app update")
+        }
+    }
+
+    private fun install(apk: ByteArray) {
+        val installer = packageManager.packageInstaller
+        val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+        val session = installer.openSession(installer.createSession(params))
+        session.openWrite("tv.apk", 0, apk.size.toLong()).use { out ->
+            out.write(apk)
+            session.fsync(out)
+        }
+        val back = Intent(this, MainActivity::class.java).setAction(INSTALL_ACTION)
+        val flags = PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)
+        session.commit(PendingIntent.getActivity(this, 1, back, flags).intentSender)
+        session.close()
+    }
+
+    /** The system reports back here; the first report asks us to show its install prompt. */
+    private fun handleInstall(intent: Intent?) {
+        if (intent == null || intent.action != INSTALL_ACTION) return
+        val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, -99)
+        if (status == PackageInstaller.STATUS_PENDING_USER_ACTION) {
+            @Suppress("DEPRECATION")
+            val prompt = intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)
+            try {
+                if (prompt != null) startActivity(prompt)
+            } catch (e: Exception) {
+                say("The update couldn't open the install prompt")
+            }
+        } else if (status != PackageInstaller.STATUS_SUCCESS && status != -99) {
+            say("The update didn't install. Allow Guide TV under Install unknown apps, then try again.")
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleInstall(intent)
+    }
+
+    private fun say(message: String) {
+        js("window.nativeToast && nativeToast(" + JSONObject.quote(message) + ")")
     }
 
     // ---------- players ----------
@@ -334,6 +498,19 @@ class MainActivity : Activity() {
         }
 
         @JavascriptInterface
+        fun version(): String = "0." + myVersion()
+
+        @JavascriptInterface
+        fun checkUpdate() {
+            Thread { this@MainActivity.checkUpdate() }.start()
+        }
+
+        @JavascriptInterface
+        fun refresh() {
+            Thread { refreshPage(true) }.start()
+        }
+
+        @JavascriptInterface
         fun exit() {
             ui.post { finish() }
         }
@@ -366,6 +543,7 @@ class MainActivity : Activity() {
         // While a text box is open the on-screen keyboard and the page handle keys themselves.
         if (typing && event.keyCode != KeyEvent.KEYCODE_BACK) return super.dispatchKeyEvent(event)
         val name = keyName(event) ?: return super.dispatchKeyEvent(event)
+        touched = true
         val type = when (event.action) {
             KeyEvent.ACTION_DOWN -> "keydown"
             KeyEvent.ACTION_UP -> "keyup"
@@ -392,6 +570,14 @@ class MainActivity : Activity() {
         super.onStop()
         stopped = true
         for (i in 0..1) release(i)
+    }
+
+    companion object {
+        /** Highest "api" number of a screen this app can run. */
+        const val API = 2
+        const val PAGE_URL = "https://raw.githubusercontent.com/eandsconsultings/tv/main/app/src/main/assets/index.html"
+        const val APK_URL = "https://raw.githubusercontent.com/eandsconsultings/tv/apk/tv.apk"
+        const val INSTALL_ACTION = "tv.guide.app.INSTALL"
     }
 
     override fun onDestroy() {
