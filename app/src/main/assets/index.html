@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="page" content="3">
+<meta name="page" content="4">
 <meta name="api" content="2">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Guide TV preview</title>
+<title>Onyx preview</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;background:#05080c;color:#fff;font-family:Roboto,"Helvetica Neue",Arial,sans-serif;overflow:hidden}
@@ -48,6 +48,9 @@ video.mini{left:16px;top:12px;width:320px;height:180px;border-radius:8px}
 #shade{position:absolute;inset:0;background:rgba(0,0,0,.35);display:none}
 #m1{position:absolute;left:0;top:0;bottom:0;width:176px;background:var(--m1);color:var(--m1fg);padding-top:118px;display:none}
 #m1.thin{width:54px}
+.brand{position:absolute;left:0;right:0;top:22px;display:flex;flex-direction:column;align-items:center;gap:6px}
+.brand svg{width:46px;height:46px}.brand b{font-size:13px;font-weight:500;letter-spacing:.42em;padding-left:.42em}
+#m1.thin .brand b{display:none}
 .mi{display:flex;align-items:center;gap:12px;margin:4px 10px;padding:9px 12px;border-radius:6px;font-size:16px;font-weight:500;white-space:nowrap;overflow:hidden}
 .mi svg{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .mi.f{background:var(--m1f);color:var(--m1ffg,inherit)}
@@ -149,7 +152,7 @@ html.native video{visibility:hidden}html.native #pip{background:transparent}
 </style>
 </head>
 <body>
-<div id="note"><b>Browser preview of Guide TV</b><span>Arrows = remote pad</span><span>Enter = OK (hold for favorite)</span><span>M = Menu</span><span>Esc = Back</span><span>Enter while watching = pop-up menu</span><span>Left in the guide = side menu</span><span>P = send channel to small window</span><span>S = swap</span><span>X = close it</span></div>
+<div id="note"><b>Browser preview of Onyx</b><span>Arrows = remote pad</span><span>Enter = OK (hold for favorite)</span><span>M = Menu</span><span>Esc = Back</span><span>Enter while watching = pop-up menu</span><span>Left in the guide = side menu</span><span>P = send channel to small window</span><span>S = swap</span><span>X = close it</span></div>
 <div id="wrap"><div id="stage">
   <div id="guide">
     <div id="biglogo"></div>
@@ -190,6 +193,7 @@ window.tvKey = (type, key, repeat) => dispatchEvent(new KeyboardEvent(type, { ke
 window.nativeError = i => { if (i === 0) { if (current) recover(); } else if (pip) { toast(pip.name + " isn't playing in the second window"); startPip(null); render(); } };
 const PAGE = +((document.querySelector('meta[name="page"]') || {}).content || 0);
 window.nativeToast = m => toast(m);
+const BRAND = '<div class="brand"><svg viewBox="20 14 110 122"><defs><linearGradient id="og" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f3d98a"/><stop offset="1" stop-color="#b98a2c"/></linearGradient></defs><path d="M75 22l46 26.500v53L75 128l-46-26.500v-53z" fill="#15171c" stroke="url(#og)" stroke-width="4" stroke-linejoin="round"/><path d="M75 22v28M121 48.500L98 62M121 101.500L98 88M75 128v-28M29 101.500L52 88M29 48.500L52 62" stroke="#8a6a25" stroke-width="2"/><path d="M75 50l23 12v26l-23 12-23-12V62z" fill="#1d2027" stroke="#c9a04a" stroke-width="2" stroke-linejoin="round"/><path d="M68 63l19 12-19 12z" fill="url(#og)"/></svg><b>ONYX</b></div>';
 function nInfo() { try { return JSON.parse(Native.info()); } catch (e) { return {}; } }
 function syncNative() {
   if (!NATIVE) return; const d = window.devicePixelRatio || 1, W = window.innerWidth || 1, H = window.innerHeight || 1;
@@ -848,7 +852,7 @@ function drawMenu() {
   m2.style.display = guideOpen && menu ? "block" : "none";
   $("m3").style.display = guideOpen && menu === 3 ? "block" : "none";
   if (!guideOpen || !menu) return;
-  m1.innerHTML = MAIN.map((x, i) => '<div class="mi' + (i === mainIdx ? (menu === 1 ? " f" : " on") : "") + '"><svg viewBox="0 0 24 24">' + x.icon + "</svg><span>" + x.label + "</span></div>").join("");
+  m1.innerHTML = BRAND + MAIN.map((x, i) => '<div class="mi' + (i === mainIdx ? (menu === 1 ? " f" : " on") : "") + '"><svg viewBox="0 0 24 24">' + x.icon + "</svg><span>" + x.label + "</span></div>").join("");
   const id = MAIN[mainIdx].id, items = subItems();
   if (subIdx >= items.length) subIdx = Math.max(0, items.length - 1);
   let h = "<h2>" + MAIN[mainIdx].label + "</h2>";
