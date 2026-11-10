@@ -16,6 +16,21 @@ android {
         versionCode = buildNumber
         versionName = "0.$buildNumber"
     }
+    // One fixed signing key, so every new build installs over the last one.
+    // The key file is created once by the build workflow and kept in its private cache, never in the repository.
+    signingConfigs {
+        create("onyx") {
+            storeFile = rootProject.file("signing/onyx.keystore")
+            storePassword = "onyxtv"
+            keyAlias = "onyx"
+            keyPassword = "onyxtv"
+        }
+    }
+    buildTypes {
+        getByName("debug") {
+            signingConfig = signingConfigs.getByName("onyx")
+        }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
